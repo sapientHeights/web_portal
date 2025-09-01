@@ -28,14 +28,8 @@ export default function Dashboard() {
 
     const navigateTo = (id: number) => {
         switch(id){
-            case 1:
-                router.push('/teacherRegistration');
-                break;
             case 2:
                 router.push('/studentRegistration');
-                break;
-            case 3:
-                router.push('/feeManagement');
                 break;
             default:
                 toast("Coming Soon...");
