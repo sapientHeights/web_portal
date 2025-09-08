@@ -10,7 +10,7 @@ type Props = {
 export default function TextAreaField({ label, name, value, onChange, required, maxLength }: Props) {
     return (
         <div>
-            <label className="block text-sm font-bold tracking-wide text-gray-700 mb-1">{label}</label>
+            <label className="block text-sm font-bold tracking-wide text-gray-700 mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
             <textarea
                 name={name}
                 value={value}

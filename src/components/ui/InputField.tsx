@@ -12,7 +12,7 @@ type Props = {
 export default function InputField({ label, name, value, onChange, type = "text", required, maxLength, minLength }: Props) {
     return (
         <div>
-            <label className="block text-sm font-bold tracking-wide text-gray-700 mb-1">{label}</label>
+            <label className="block text-sm font-bold tracking-wide text-gray-700 mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
             <input
                 type={type}
                 name={name}

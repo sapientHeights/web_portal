@@ -26,7 +26,7 @@ export default function FileUpload({ required = false,
     files }: Props) {
     return (
         <div>
-            <label className="block text-sm font-bold tracking-wide text-gray-700 mb-1">{label}</label>
+            <label className="block text-sm font-bold tracking-wide text-gray-700 mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
             <label className="block border-2 border-dashed border-gray-300 rounded-lg p-5 text-center transition-all duration-300 cursor-pointer hover:border-indigo-500 hover:bg-indigo-100/10">
                 <div className="text-2xl mb-2 flex justify-center">
                     <span role="img" className="bg-indigo-500 text-white p-3 rounded-md" aria-label="info">{icon}</span>

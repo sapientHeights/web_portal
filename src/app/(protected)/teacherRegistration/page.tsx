@@ -1,12 +1,10 @@
-'use client'
+'use client';
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { User, Users, BookOpen, Banknote, FileText, ImagePlus, Camera, BadgeIndianRupee, Landmark, IdCard, ScrollText, StepBack } from "lucide-react";
-import toast from "react-hot-toast";
+import { BadgeIndianRupee, Banknote, Camera, FileText, GraduationCap, IdCard, ImagePlus, Landmark, Merge, ScrollText, StepBack, User, Users } from "lucide-react";
 import Header from "@/components/ui/Header";
 import Button from "@/components/ui/Button";
 import UserInfo from "@/components/ui/UserInfo";
+import { useRouter } from "next/navigation";
 import FormSection from "@/components/ui/FormSection";
 import InputField from "@/components/ui/InputField";
 import SelectField from "@/components/ui/SelectField";
@@ -14,52 +12,51 @@ import TextAreaField from "@/components/ui/TextAreaField";
 import RadioGroup from "@/components/ui/RadioGroup";
 import FileUpload from "@/components/ui/FileUpload";
 import Footer from "@/components/ui/Footer";
-import FullPageLoader from "@/components/ui/FullPageLoader";
+import { useState } from "react";
 import FormFooterActions from "@/components/ui/FormFooterActions";
 import { useUser } from "@/context/UserContext";
-import { useClasses } from "@/hooks/useClasses";
-import { useSections } from "@/hooks/useSections";
-import type { StudentData, StudentDocs } from "@/types/student";
-import { useSessions } from "@/hooks/useSessions";
+import { TeacherData, TeacherDocs } from "@/types/teacher";
+import toast from "react-hot-toast";
+import FullPageLoader from "@/components/ui/FullPageLoader";
 
-
-const initialFormData : StudentData = {
-    studentName: "", dob: "", gender: "", aadharNumber: "", caste: "", samagraId: "", studentMobile: "", emailId: "", address: "", fatherName: "",
-    motherName: "", fatherMobile: "", motherMobile: "", fatherOccupation: "", sessionId: "", studentClass: "", section: "",
-    accountNumber: "", bankName: "", branchName: "", ifscCode: ""
+const initialFormData: TeacherData = {
+    teacherName: "", dob: "", gender: "", aadharNumber: "", caste: "", maritalStatus: "", samagraId: "", teacherMobile: "", emailId: "",
+    bloodGroup: "", religion: "", panNumber: "", address: "", fatherName: "", motherName: "", spouseName: "", qualification: "",
+    experience: "", empId: "", designation: "", doj: "", accountNumber: "", bankName: "", branchName: "", ifscCode: ""
 };
 
-const initialDocsData : StudentDocs = {
-    studentPic: null, fatherPic: null, motherPic: null, birthCertificate: null, sAadhar: null, fAadhar: null, mAadhar: null,
-    casteCertificate: null, passbook: null, samagra: null
+const initialDocsData: TeacherDocs = {
+    teacherPic: null, birthCertificate: null, tAadhar: null, casteCertificate: null, passbook: null, samagra: null
 }
 
-export default function StudentRegistration() {
+
+export default function TeacherRegistration() {
     const router = useRouter();
-    const {user} = useUser();
+    const { user } = useUser();
+    const [isLoading, setIsLoading] = useState(false);
 
-    const [formData, setFormData] = useState<StudentData>(initialFormData);
-    const [documentsData, setDocumentsData] = useState<StudentDocs>(initialDocsData);
+    const [formData, setFormData] = useState<TeacherData>(initialFormData);
+    const [documentsData, setDocumentsData] = useState<TeacherDocs>(initialDocsData);
 
-    const [pageLoading, setPageLoading] = useState(false);
-    const { classes, isLoading: classesLoading } = useClasses();
-    const { sections, isLoading: sectionsLoading } = useSections(formData.studentClass);
-    const { sessions, isLoading: sessionsLoading } = useSessions();
+    const goBack = () => {
+        router.back();
+    }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        if(name === "aadharNumber" || name === "fatherMobile" || name === "motherMobile" || name === "studentMobile"){
+        if (name === "aadharNumber" || name === "teacherMobile") {
             let currentValue = value;
-            if(value.length > 1){
+            if (value.length > 1) {
                 currentValue = value[value.length - 1].toLowerCase();
             }
-            if(currentValue >= 'a' && currentValue <= 'z'){
+            if (currentValue >= 'a' && currentValue <= 'z') {
                 toast.error("Please enter number only");
                 return;
             }
         }
         setFormData(prev => ({ ...prev, [name]: value }));
     };
+
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, name: string) => {
         const file = e.target.files?.[0];
@@ -83,12 +80,8 @@ export default function StudentRegistration() {
         }
     };
 
-    const goBack = () => {
-        router.back();
-    }
-
     const reset = () => {
-        if(formData === initialFormData && documentsData === initialDocsData){
+        if (formData === initialFormData && documentsData === initialDocsData) {
             toast.error("Nothing to clear.");
             return;
         }
@@ -99,12 +92,20 @@ export default function StudentRegistration() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        // const isDataValid = Object.values(formData).every((value) => value !== "");
+        // const isDocsValid = Object.values(documentsData).every((document) => document !== null);
+
+        // if (!isDataValid || !isDocsValid) {
+        //     toast.error("Please fill all the required data");
+        //     return;
+        // }
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         const enteredDate = new Date(formData['dob']);
         enteredDate.setHours(0, 0, 0, 0);
+        
         if(enteredDate > today){
             toast.error("Date cannot be in the future");
             return;
@@ -112,43 +113,41 @@ export default function StudentRegistration() {
 
         const dataToSend = new FormData();
         Object.keys(formData).forEach((key) => {
-            const value = formData[key as keyof StudentData];
+            const value = formData[key as keyof TeacherData];
             dataToSend.append(key, value);
         })
         Object.keys(documentsData).forEach((key) => {
-            const file = documentsData[key as keyof StudentDocs];
+            const file = documentsData[key as keyof TeacherDocs];
             if(file) dataToSend.append(key, file);
         })
 
         try{
-            setPageLoading(true);
+            setIsLoading(true);
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-            const res = await fetch(`${backendUrl}/registerStudent.php`, {
+            const res = await fetch(`${backendUrl}/registerTeacher.php`, {
                 method: 'POST',
                 body: dataToSend
             })
 
             const data = await res.json();
             if(data.error){
-                toast.error("Failed to register student");
-                console.error(data.message);
+                toast.error("Failed to register teacher");
             }
             else{
-                toast.success("Student Registered successfully");
+                toast.success("Teacher Registered successfully");
                 reset();
             }
         }
         catch(err){
-            toast.error("Failed to register student");
+            toast.error("Failed to register teacher");
             console.error(err);
         }
         finally{
-            setPageLoading(false);
+            setIsLoading(false);
         }
     };
 
-    const isLoading = sessionsLoading || classesLoading || sectionsLoading || pageLoading;
-    if (isLoading) {
+    if(isLoading){
         return <FullPageLoader />
     }
 
@@ -161,23 +160,31 @@ export default function StudentRegistration() {
             <UserInfo name={user ? user.name : 'Name'} role={user ? user.desc : 'Position'} />
 
             {/* Header */}
-            <Header title='Sapient Heights' info='Add new student to Sapient Heights' />
+            <Header title='Sapient Heights' info='Add a new teacher to Sapient Heights' />
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10">
                 <form onSubmit={handleSubmit}>
                     {/* Section Component */}
                     <FormSection icon={<User size={18} />} title="Personal Information">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <InputField label="Student Name" name="studentName" value={formData.studentName} onChange={handleChange} required maxLength={75} />
+                            <InputField label="Teacher Name" name="teacherName" value={formData.teacherName} onChange={handleChange} required maxLength={75} />
                             <InputField label="Date of Birth" name="dob" value={formData.dob} onChange={handleChange} type="date" required />
                             <RadioGroup label="Gender" name="gender" options={["male", "female", "other"]} value={formData.gender} onChange={handleChange} required />
                             <InputField label="Aadhar Number" name="aadharNumber" value={formData.aadharNumber} onChange={handleChange} maxLength={12} required />
-                            <SelectField label="Caste" name="caste" value={formData.caste} onChange={handleChange} required options={["General", "OBC", "SC", "ST", "Other"]} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <SelectField label="Caste" name="caste" value={formData.caste} onChange={handleChange} options={["General", "OBC", "SC", "ST", "Other"]} required />
+                                <SelectField label="Marital Status" name="maritalStatus" value={formData.maritalStatus} onChange={handleChange} options={["Married", "Unmarried"]} required />
+                            </div>
                             <InputField label="Samagra ID" name="samagraId" value={formData.samagraId} onChange={handleChange} maxLength={9} />
-                            <InputField label="Student's Mobile Number" name="studentMobile" value={formData.studentMobile} onChange={handleChange} maxLength={10} minLength={10} />
-                            <InputField label="Email ID" name="emailId" value={formData.emailId} onChange={handleChange} type="email" maxLength={255} />
+                            <InputField label="Teacher's Mobile Number" name="teacherMobile" value={formData.teacherMobile} onChange={handleChange} maxLength={10} minLength={10} required />
+                            <InputField label="Email Id" name="emailId" value={formData.emailId} onChange={handleChange} maxLength={255} required />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <SelectField label="Blood Group" name="bloodGroup" value={formData.bloodGroup} onChange={handleChange} options={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]} />
+                                <SelectField label="Religion" name="religion" value={formData.religion} onChange={handleChange} options={["Hinduism", "Islam", "Christianity", "Sikhism", "Buddhism", "Jainism", "Parsis"]} />
+                            </div>
+                            <InputField label="PAN Number" name="panNumber" value={formData.panNumber} onChange={handleChange} required maxLength={10} />
                             <div className="md:col-span-2">
-                                <TextAreaField label="Address" name="address" value={formData.address} onChange={handleChange} required maxLength={100} />
+                                <TextAreaField label="Address" name="address" value={formData.address} onChange={handleChange} maxLength={100} />
                             </div>
                         </div>
                     </FormSection>
@@ -186,24 +193,22 @@ export default function StudentRegistration() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <InputField label="Father's Name" name="fatherName" value={formData.fatherName} onChange={handleChange} required maxLength={75} />
                             <InputField label="Mother's Name" name="motherName" value={formData.motherName} onChange={handleChange} required maxLength={75} />
-                            <InputField label="Father's Mobile Number" name="fatherMobile" value={formData.fatherMobile} onChange={handleChange} required maxLength={10} minLength={10} />
-                            <InputField label="Mother's Mobile Number" name="motherMobile" value={formData.motherMobile} onChange={handleChange} maxLength={10} minLength={10} />
-                            <InputField label="Father's Occupation" name="fatherOccupation" value={formData.fatherOccupation} onChange={handleChange} maxLength={100} />
+                            {formData.maritalStatus === 'Married' && <InputField label="Spouse's Name" name="spouseName" value={formData.spouseName} onChange={handleChange} required maxLength={75} />}
                         </div>
                     </FormSection>
 
-                    <FormSection icon={<BookOpen size={18} />} title="Academic Information">
+                    <FormSection icon={<GraduationCap size={18} />} title="Experience">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <InputField label="Qualification" name="qualification" value={formData.qualification} onChange={handleChange} required maxLength={100}/>
+                            <InputField label="Years of Experience" name="experience" value={formData.experience} onChange={handleChange} type="number" required />
+                        </div>
+                    </FormSection>
+
+                    <FormSection icon={<Merge size={18} />} title="Joining">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <SelectField label="Session" name="sessionId" value={formData.sessionId} onChange={handleChange} options={sessions} required />
-                            <SelectField
-                                label="Class"
-                                name="studentClass"
-                                value={formData.studentClass}
-                                onChange={handleChange}
-                                options={classes}
-                                required
-                            />
-                            <SelectField label="Section" name="section" value={formData.section} onChange={handleChange} options={sections} required disabled={formData.studentClass === ""} />
+                            <InputField label="Employee Id" name="empId" value={formData.empId} onChange={handleChange} />
+                            <SelectField label="Designation" name="designation" value={formData.designation} onChange={handleChange} options={["Principal", "PGT", "TGT", "PRT", "PTI", "Music Teacher", "Peone", "Lower Staff", "Gurd"]} required />
+                            <InputField label="Date of Joining" name="doj" value={formData.doj} onChange={handleChange} type="date" required />
                         </div>
                     </FormSection>
 
@@ -218,23 +223,19 @@ export default function StudentRegistration() {
 
                     <FormSection icon={<FileText size={18} />} title="Document Upload">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <FileUpload label="Student's Photo" name="studentPic" onChange={handleFileChange} icon={<Camera />} files={documentsData} required />
-                            <FileUpload label="Father's Photo" name="fatherPic" onChange={handleFileChange} icon={<Camera />} files={documentsData} required />
-                            <FileUpload label="Mother's Photo" name="motherPic" onChange={handleFileChange} icon={<Camera />} files={documentsData} required />
-                            <FileUpload label="Birth Certificate" name="birthCertificate" onChange={handleFileChange} icon={<BadgeIndianRupee />} files={documentsData} required />
-                            <FileUpload label="Student's Aadhar Card" name="sAadhar" onChange={handleFileChange} icon={<IdCard />} files={documentsData} required />
-                            <FileUpload label="Father's Aadhar Card" name="fAadhar" onChange={handleFileChange} icon={<IdCard />} files={documentsData} />
-                            <FileUpload label="Mother's Aadhar Card" name="mAadhar" onChange={handleFileChange} icon={<IdCard />} files={documentsData} />
+                            <FileUpload label="Teacher's Photo" name="teacherPic" onChange={handleFileChange} icon={<Camera />} files={documentsData} required />
+                            <FileUpload label="Birth Certificate" name="birthCertificate" onChange={handleFileChange} icon={<BadgeIndianRupee />} files={documentsData} />
+                            <FileUpload label="Teacher's Aadhar Card" name="tAadhar" onChange={handleFileChange} icon={<IdCard />} files={documentsData} required />
                             <FileUpload label="Caste Certificate" name="casteCertificate" onChange={handleFileChange} icon={<ScrollText />} files={documentsData} />
                             <FileUpload label="Bank Passbook Front Page" name="passbook" onChange={handleFileChange} icon={<Landmark />} files={documentsData} />
                             <FileUpload label="Samagra ID Document" name="samagra" onChange={handleFileChange} icon={<ImagePlus />} files={documentsData} />
                         </div>
                     </FormSection>
 
-                    <FormFooterActions primaryLabel={'Register Student'} reset={reset} />
+                    <FormFooterActions primaryLabel={'Register Teacher'} reset={reset} />
                 </form>
             </div>
             <Footer />
         </div>
-    );
-};
+    )
+}

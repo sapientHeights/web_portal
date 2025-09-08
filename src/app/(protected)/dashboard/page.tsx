@@ -16,9 +16,12 @@ import FullPageLoader from '@/components/ui/FullPageLoader';
 
 export default function Dashboard() {
     const router = useRouter();
-    const { classes, isLoading } = useClasses();
+    const { classes, isLoading: classesLoading } = useClasses();
     const [showResetPassword, setShowResetPassword] = useState(false);
     const { user, refreshUser } = useUser();
+    const [studentsCount, setStudentsCount] = useState(null);
+    const [teachersCount, setTeachersCount] = useState(null);
+    const [pageLoading, setPageLoading] = useState(false);
 
     useEffect(() => {
         if (user?.firstLogin === 1) {
@@ -26,9 +29,41 @@ export default function Dashboard() {
         }
     }, [user])
 
+    const fetchAllStudentsCount = async () => {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/getAllStudentsCount.php`, {
+            method: 'GET'
+        });
+        const data = await res.json();
+        if (!data.error) {
+            setStudentsCount(data.studentsCount);
+            return;
+        }
+    }
+
+    const fetchAllTeachersCount = async () => {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/getAllTeachersCount.php`, {
+            method: 'GET'
+        });
+        const data = await res.json();
+        if (!data.error) {
+            setTeachersCount(data.teachersCount);
+            return;
+        }
+    }
+
+    useEffect(() => {
+        fetchAllStudentsCount();
+        fetchAllTeachersCount();
+    }, [])
+
     const navigateTo = (id: number) => {
-        switch(id){
+        switch (id) {
+            case 1:
+                setPageLoading(true);
+                router.push('/teacherRegistration');
+                break;
             case 2:
+                setPageLoading(true);
                 router.push('/studentRegistration');
                 break;
             default:
@@ -42,6 +77,7 @@ export default function Dashboard() {
             const data = await res.json();
 
             if (data.success) {
+                setPageLoading(true);
                 router.push("/login");
             }
             else {
@@ -50,6 +86,7 @@ export default function Dashboard() {
         }
     };
 
+    const isLoading = classesLoading || pageLoading;
     if (isLoading) {
         return <FullPageLoader />
     }
@@ -69,8 +106,8 @@ export default function Dashboard() {
                 {/* Stats Bar */}
                 <div className="flex flex-wrap justify-center gap-6 mb-10">
                     {[
-                        { label: 'Teachers', value: '0' },
-                        { label: 'Students', value: '0' },
+                        { label: 'Teachers', value: `${teachersCount == null ? '0' : teachersCount}` },
+                        { label: 'Students', value: `${studentsCount == null ? '0' : studentsCount}` },
                         { label: 'Classes', value: classes.length },
                         // { label: 'This Month', value: '₹14.2L' },
                     ].map((stat, idx) => (
@@ -86,20 +123,23 @@ export default function Dashboard() {
 
                 {/* Dashboard Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-                    {dashboardCards.map((card, idx) => (
-                        <div
-                            key={idx}
-                            onClick={() => navigateTo(card.id)}
-                            className="bg-gradient-to-br from-blue-500 to-purple-500 p-6 rounded-2xl text-white cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] transition-all duration-300 shadow-xl relative overflow-hidden group"
-                        >
-                            <div className="bg-white/20 border border-white/10 backdrop-blur-md w-14 h-14 flex items-center justify-center rounded-xl mb-5">
-                                <card.icon className='w-6 h-6 text-white' />
+                    {dashboardCards.map((card, idx) => {
+                        if (user && user.role === 'A' && card.id === 6) return null;
+                        return (
+                            <div
+                                key={idx}
+                                onClick={() => navigateTo(card.id)}
+                                className="bg-gradient-to-br from-blue-500 to-purple-500 p-6 rounded-2xl text-white cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] transition-all duration-300 shadow-xl relative overflow-hidden group"
+                            >
+                                <div className="bg-white/20 border border-white/10 backdrop-blur-md w-14 h-14 flex items-center justify-center rounded-xl mb-5">
+                                    <card.icon className='w-6 h-6 text-white' />
+                                </div>
+                                <h3 className="text-xl font-semibold mb-2">{card.title}</h3>
+                                <p className="text-sm opacity-90 leading-relaxed">{card.description}</p>
+                                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition duration-300" />
                             </div>
-                            <h3 className="text-xl font-semibold mb-2">{card.title}</h3>
-                            <p className="text-sm opacity-90 leading-relaxed">{card.description}</p>
-                            <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition duration-300" />
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* Reset Password */}

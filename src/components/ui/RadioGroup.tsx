@@ -10,7 +10,7 @@ type Props = {
 export default function RadioGroup({ label, name, options, value, onChange, required }: Props) {
     return (
         <div>
-            <label className="block text-sm font-bold text-gray-700 tracking-wide mb-1">{label}</label>
+            <label className="block text-sm font-bold text-gray-700 tracking-wide mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
             <div className="flex gap-4">
                 {options.map(opt => (
                     <label key={opt} className="inline-flex items-center space-x-2 text-sm tracking-wide">

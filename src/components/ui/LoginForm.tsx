@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, ArrowBigLeft } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -15,6 +15,7 @@ export default function LoginForm() {
     });
     const [isLoading, setIsLoading] = useState(false);
     const [forgetPassword, setForgetPassword] = useState(false);
+    const [loadHome, setLoadHome] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -35,8 +36,6 @@ export default function LoginForm() {
 
             const data = await res.json();
             if (data.success) {
-                setIsLoading(false);
-
                 router.push("/dashboard");
             }
             else {
@@ -64,10 +63,17 @@ export default function LoginForm() {
         return <ForgetPasswordForm setForgetPassword={setForgetPassword} />
     }
 
+    const goToHome = () => {
+        setLoadHome(true);
+        setIsLoading(true);
+        router.push('/');
+    }
+
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div className="space-y-2">
+                <ArrowBigLeft onClick={goToHome} size={12} className='text-white fill-white mb-2 cursor-pointer' />
                 <label htmlFor="email" className="block text-sm font-medium text-white tracking-wider">
                     Email Address
                 </label>
@@ -155,7 +161,7 @@ export default function LoginForm() {
                 {isLoading ? (
                     <div className="flex items-center">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                        Signing in...
+                        {loadHome ? 'Going back...' : 'Signing in...'}
                     </div>
                 ) : (
                     'Sign In'

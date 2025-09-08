@@ -23,20 +23,11 @@ export default function LoginPage() {
           <h1 className="text-3xl font-bold text-zinc-900 mb-2 drop-shadow-sm">Sapient Heights</h1>
           <p className="text-gray-500 text-sm">Sign in to your teacher account</p>
         </div>
+        
         {/* Main Login Card */}
         <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-purple-700 backdrop-blur-lg rounded-2xl shadow-2xl border border-blue-200/30 p-8">
           {/* Login Form */}
           <LoginForm />
-
-          {/* Additional Links */}
-          {/* <div className="mt-6 text-center">
-            <p className="text-sm text-blue-50">
-              Need help?{' '}
-              <a href="#" className="text-blue-100 hover:text-white transition-colors duration-200">
-                Contact Administrator
-              </a>
-            </p>
-          </div> */}
         </div>
 
         {/* Footer */}

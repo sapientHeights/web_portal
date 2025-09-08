@@ -11,7 +11,7 @@ type Props = {
 export default function SelectField({ label, name, value, onChange, options, required, disabled = false }: Props) {
     return (
         <div>
-            <label className="block text-sm font-bold tracking-wide text-gray-700 mb-1">{label}</label>
+            <label className="block text-sm font-bold tracking-wide text-gray-700 mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
             <select
                 name={name}
                 value={value}
