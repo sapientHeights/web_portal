@@ -26,7 +26,7 @@ const initialFormData: TeacherData = {
 };
 
 const initialDocsData: TeacherDocs = {
-    teacherPic: null, birthCertificate: null, tAadhar: null, casteCertificate: null, passbook: null, samagra: null
+    teacherPic: null, panCard: null, tAadhar: null, casteCertificate: null, passbook: null, samagra: null
 }
 
 
@@ -39,6 +39,7 @@ export default function TeacherRegistration() {
     const [documentsData, setDocumentsData] = useState<TeacherDocs>(initialDocsData);
 
     const goBack = () => {
+        setIsLoading(true);
         router.back();
     }
 
@@ -92,13 +93,6 @@ export default function TeacherRegistration() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // const isDataValid = Object.values(formData).every((value) => value !== "");
-        // const isDocsValid = Object.values(documentsData).every((document) => document !== null);
-
-        // if (!isDataValid || !isDocsValid) {
-        //     toast.error("Please fill all the required data");
-        //     return;
-        // }
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -224,7 +218,7 @@ export default function TeacherRegistration() {
                     <FormSection icon={<FileText size={18} />} title="Document Upload">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <FileUpload label="Teacher's Photo" name="teacherPic" onChange={handleFileChange} icon={<Camera />} files={documentsData} required />
-                            <FileUpload label="Birth Certificate" name="birthCertificate" onChange={handleFileChange} icon={<BadgeIndianRupee />} files={documentsData} />
+                            <FileUpload label="PAN Card" name="panCard" onChange={handleFileChange} icon={<BadgeIndianRupee />} files={documentsData} />
                             <FileUpload label="Teacher's Aadhar Card" name="tAadhar" onChange={handleFileChange} icon={<IdCard />} files={documentsData} required />
                             <FileUpload label="Caste Certificate" name="casteCertificate" onChange={handleFileChange} icon={<ScrollText />} files={documentsData} />
                             <FileUpload label="Bank Passbook Front Page" name="passbook" onChange={handleFileChange} icon={<Landmark />} files={documentsData} />
