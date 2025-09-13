@@ -2,15 +2,15 @@ import { fetchSectionsByClass } from "@/lib/api";
 import { useEffect, useState } from "react"
 import toast from "react-hot-toast";
 
-export const useSections = (class_id: string) => {
+export const useSections = (classId: string) => {
     const [sections, setSections] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const getSectionsData = async () => {
-        if (!class_id) return;
+        if (!classId) return;
         setIsLoading(true);
 
-        const result = await fetchSectionsByClass(class_id);
+        const result = await fetchSectionsByClass(classId);
         if (result.success && result.sections) {
             setSections(result.sections);
         }
@@ -23,7 +23,7 @@ export const useSections = (class_id: string) => {
 
     useEffect(() => {
         getSectionsData();
-    }, [class_id]);
+    }, [classId]);
 
     return { sections, isLoading, refresh: getSectionsData }
 }

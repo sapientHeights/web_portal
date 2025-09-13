@@ -8,7 +8,7 @@ export const fetchClasses = async () => {
         });
         const data = await res.json();
         if (data.success && data.classesData) {
-            const classes = (data.classesData.map((item: { class_id: string }) => item.class_id));
+            const classes = (data.classesData.map((item: { classId: string }) => item.classId));
             return { success: true, classes };
         }
         else {
@@ -21,7 +21,7 @@ export const fetchClasses = async () => {
     }
 }
 
-export const fetchSectionsByClass = async (class_id: string) => {
+export const fetchSectionsByClass = async (classId: string) => {
     try {
         const res = await fetch('/api/getSectionsByClass', {
             method: 'POST',
@@ -29,12 +29,12 @@ export const fetchSectionsByClass = async (class_id: string) => {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                class_id
+                classId
             })
         });
         const data = await res.json();
         if (data.success && data.sectionsData) {
-            const sections = (data.sectionsData.map((item: { section_id: string }) => item.section_id));
+            const sections = (data.sectionsData.map((item: { section: string }) => item.section));
             return {success: true, sections};
         }
         else {

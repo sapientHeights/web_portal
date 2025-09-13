@@ -3,7 +3,7 @@ import { NextResponse, NextRequest } from "next/server";
 export async function POST(request: NextRequest) {
     const backendUrl = process.env.BACKEND_URL;
 
-    const {class_id} = await request.json();
+    const {classId} = await request.json();
     try {
         const res = await fetch(`${backendUrl}/getSectionsByClass.php`, {
             method: 'POST',
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                class_id
+                classId
             })
         });
 
