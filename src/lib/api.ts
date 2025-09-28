@@ -33,7 +33,7 @@ export const fetchSectionsByClass = async (classId: string) => {
             })
         });
         const data = await res.json();
-        if (data.success && data.sectionsData) {
+        if (!data.error && data.sectionsData) {
             const sections = (data.sectionsData.map((item: { section: string }) => item.section));
             return {success: true, sections};
         }
@@ -59,6 +59,32 @@ export const fetchSessions = async () => {
         if (data.success && data.sessionsData) {
             const sessions = (data.sessionsData.map((item: { sessionId: string }) => item.sessionId));
             return { success: true, sessions };
+        }
+        else {
+            return { success: false };
+        }
+    }
+    catch (e) {
+        console.log(e);
+        return { success: false };
+    }
+}
+
+export const fetchSubjectsByClass = async (classId: string) => {
+    try {
+        const res = await fetch('/api/getSubjectsByClass', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                classId
+            })
+        });
+        const data = await res.json();
+        if (!data.error && data.subjectsData) {
+            const subjects = (data.subjectsData.map((item: { subjectId: string }) => item.subjectId));
+            return {success: true, subjects};
         }
         else {
             return { success: false };

@@ -66,9 +66,17 @@ export default function Dashboard() {
                 setPageLoading(true);
                 router.push('/studentRegistration');
                 break;
+            case 3:
+                setPageLoading(true);
+                router.push('/feeManagement');
+                break;
             case 4:
                 setPageLoading(true);
                 router.push('/reports');
+                break;
+            case 5:
+                setPageLoading(true);
+                router.push('/attendance');
                 break;
             default:
                 toast("Coming Soon...");

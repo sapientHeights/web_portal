@@ -1,9 +1,10 @@
 type Props = {
     primaryLabel: string;
     reset?: () => void;
+    cancel?: () => void;
 }
 
-export default function FormFooterActions({ primaryLabel, reset }: Props) {
+export default function FormFooterActions({ primaryLabel, reset, cancel }: Props) {
     return (
         <div className="mt-10 flex justify-center flex-col sm:flex-row gap-4">
             <button
@@ -23,7 +24,7 @@ export default function FormFooterActions({ primaryLabel, reset }: Props) {
             )}
             <button
                 type="button"
-                onClick={() => window.history.back()}
+                onClick={cancel ? cancel : () => window.history.back()}
                 className="bg-red-400 hover:bg-red-500 text-white px-8 py-3 rounded-lg font-semibold transition-all cursor-pointer"
             >
                 Cancel
