@@ -1,22 +1,33 @@
 'use client';
 
 import { FeeData } from "@/types/fee";
-import { SquarePen } from "lucide-react";
+import { ListPlus, Sheet, SquarePen } from "lucide-react";
+import { useState } from "react";
+import ShowPayments from "./ShowPayments";
 
 type Props = {
   feeData: FeeData[];
   category: string;
-  setUpdateFee: React.Dispatch<React.SetStateAction<boolean>>
-  setSelectedStd: React.Dispatch<React.SetStateAction<FeeData | null>>
+  setUpdateFee: React.Dispatch<React.SetStateAction<boolean>>;
+  setSelectedStd: React.Dispatch<React.SetStateAction<FeeData | null>>;
+  getFeeData : () => void;
 }
 
-export default function Table({feeData, category, setUpdateFee, setSelectedStd} : Props) {
+export default function Table({feeData, category, setUpdateFee, setSelectedStd, getFeeData} : Props) {
+  const [showPayments, setShowPayments] = useState(false);
+  const [selectedStdFee, setSelectedStdFee] = useState<FeeData | null>(null);
+
   const showPaidFee = category === 'feePaid';
   const showFeeMaster = category === 'feeMaster';
 
   const edit = (stdFee: FeeData) => {
     setUpdateFee(true);
     setSelectedStd(stdFee);
+  }
+
+  const payments = (stdFee: FeeData) => {
+    setSelectedStdFee(stdFee);
+    setShowPayments(true);
   }
 
   return (
@@ -58,11 +69,22 @@ export default function Table({feeData, category, setUpdateFee, setSelectedStd} 
                 <td className="px-6 py-4">₹{((student.fee - student.discount) - student.paid).toLocaleString()}</td>
                 </>
               )}
-              <td>{<SquarePen size={16} className="cursor-pointer hover:text-blue-800" onClick={() => edit(student)}/>}</td>
+              <td>{showFeeMaster ? 
+                <SquarePen size={16} className="cursor-pointer hover:text-blue-800" onClick={() => edit(student)}/> 
+              : 
+                <div className="flex items-center justify-between">
+                  <Sheet size={16} className="cursor-pointer hover:text-green-800" onClick={() => payments(student)}/>
+                  <ListPlus size={16} className="cursor-pointer hover:text-blue-800" onClick={() => edit(student)}/>
+                </div>}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {showPayments && (
+        <ShowPayments selectedStd={selectedStdFee} setShowPayments={setShowPayments} getFeeData={getFeeData} />
+      )}
     </div>
   );
 };

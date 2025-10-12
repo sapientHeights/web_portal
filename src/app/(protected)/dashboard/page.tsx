@@ -78,6 +78,10 @@ export default function Dashboard() {
                 setPageLoading(true);
                 router.push('/attendance');
                 break;
+            case 6:
+                setPageLoading(true);
+                router.push('/settings');
+                break;
             default:
                 toast("Coming Soon...");
         }

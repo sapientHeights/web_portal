@@ -8,3 +8,8 @@ export type FeeData = {
     paid: number;
     studentName: string;
 }
+
+export type ClassFeeData = {
+    classId: string;
+    fee: number;
+}

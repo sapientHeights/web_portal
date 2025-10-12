@@ -4,6 +4,8 @@ import { StudentAllData, StudentData } from "@/types/student";
 import { TeacherAllData, TeacherData } from "@/types/teacher";
 import { ArrowRight } from "lucide-react";
 import toast from "react-hot-toast";
+import InputField from "./InputField";
+import { useEffect, useState } from "react";
 
 type DialogStateType = {
     openDialog: boolean;
@@ -21,6 +23,29 @@ type Props = {
 }
 
 export default function DataTable({ allData, setDialog, columns, values, reportType }: Props) {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filteredData, setFilteredData] = useState<StudentAllData[] | TeacherAllData[] | null>(null);
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { value } = e.target;
+        setSearchTerm(value);
+    }
+
+    useEffect(() => {
+        if (searchTerm === '') {
+            setFilteredData(allData);
+        }
+        else {
+            const searchedData = allData
+                ? reportType === 'students'
+                    ? (allData as StudentAllData[]).filter((data) => data.studentName.toLowerCase().includes(searchTerm.toLowerCase()))
+                    : (allData as TeacherAllData[]).filter((data) => data.teacherName.toLowerCase().includes(searchTerm.toLowerCase()))
+                : null;
+            
+            setFilteredData(searchedData);
+        }
+    }, [searchTerm])
+
     const configureDialog = (data: StudentAllData | TeacherAllData) => {
         if ('sId' in data) {
             setDialog({
@@ -30,7 +55,7 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
                 id: data.sId
             });
         }
-        else if('tId' in data){
+        else if ('tId' in data) {
             setDialog({
                 openDialog: true,
                 selectedData: data,
@@ -38,21 +63,22 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
                 id: data.tId
             })
         }
-        else{
+        else {
             toast.error("Some error occurred!");
         }
     }
 
-    if(reportType === "students"){
+    if (reportType === "students") {
         allData = allData as StudentAllData[];
     }
-    else{
+    else {
         allData = allData as TeacherAllData[];
     }
 
     return (
         <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10 z-1">
-            <div className="w-full max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg shadow-sm border border-gray-200 bg-white">
+            <InputField label="Search by Name" name="search" value={searchTerm} onChange={handleSearchChange} />
+            <div className="w-full max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg shadow-sm border border-gray-200 bg-white mt-10">
                 <table className="min-w-[600px] w-full text-sm text-left text-gray-700">
                     <thead className="bg-gray-100 sticky top-0 z-10 text-xs uppercase text-gray-600 tracking-wider text-center">
                         <tr>
@@ -63,7 +89,7 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 text-center">
-                        {allData && allData.map((data, index) => (
+                        {filteredData && filteredData.map((data, index) => (
                             <tr key={index} className="hover:bg-gray-50 transition-colors">
                                 {data && values.map((value, vIndex) => (
                                     <td key={vIndex} className="px-6 py-4">{

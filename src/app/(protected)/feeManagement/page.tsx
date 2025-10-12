@@ -166,7 +166,7 @@ export default function FeeManagement() {
                     {noData ? (
                         <NoDataSection />
                     ) : (
-                        <FeeTable feeData={feeData} category={category} setUpdateFee={setUpdateFee} setSelectedStd={setSelectedStd} />
+                        <FeeTable feeData={feeData} category={category} setUpdateFee={setUpdateFee} setSelectedStd={setSelectedStd} getFeeData={getFeeData} />
                     )}
                 </FormSection>
             </div>
