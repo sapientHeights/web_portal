@@ -5,14 +5,16 @@ import Button from "@/components/ui/Button";
 import FullPageLoader from "@/components/ui/FullPageLoader";
 import Header from "@/components/ui/Header";
 import ShowClassesFee from "@/components/ui/ShowClassesFee";
+import ShowTeachers from "@/components/ui/ShowTeachers";
 import UserInfo from "@/components/ui/UserInfo";
 import { useUser } from "@/context/UserContext"
 import { ClassFeeData } from "@/types/fee";
 import { TeacherAllData } from "@/types/teacher";
-import { Receipt, ShieldUser, StepBack } from "lucide-react";
+import { FileUser, Receipt, ShieldUser, StepBack, UserRoundCog } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
+// import ShowClassIncharge from "@/components/ui/ShowClassIncharge";
 
 type UserData = {
     email: string;
@@ -29,6 +31,7 @@ export default function Settings() {
     const [admins, setAdmins] = useState<UserData[] | null>(null);
 
     const [classesFee, setClassesFee] = useState<ClassFeeData[] | null>(null);
+    const [teachers, setTeachers] = useState<TeacherAllData[] | null>(null);
 
     const [loading, setLoading] = useState(true);
 
@@ -53,7 +56,6 @@ export default function Settings() {
         }
         catch (err) {
             toast.error("Some error occurred");
-            console.error(err);
         }
         finally {
             setLoading(false);
@@ -79,7 +81,31 @@ export default function Settings() {
         }
         catch (err) {
             toast.error("Some error occurred");
-            console.error(err);
+        }
+        finally {
+            setLoading(false);
+        }
+    }
+
+    const fetchTeachers = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`${backendUrl}/getTeachers.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            const data = await res.json();
+            if (data.error) {
+                toast.error("No data available");
+            }
+            else {
+                setTeachers(data.teachersData);
+            }
+        }
+        catch (err) {
+            toast.error("Some error occurred");
         }
         finally {
             setLoading(false);
@@ -93,6 +119,7 @@ export default function Settings() {
     useEffect(() => {
         if (category === 'admins') fetchAdmins();
         else if (category === 'fees') fetchClassFees();
+        else if (category === 'teachers') fetchTeachers();
     }, [category])
 
     const goBack = () => {
@@ -122,7 +149,7 @@ export default function Settings() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <Button icon={<ShieldUser />} text="Add or Remove Admins" onClick={() => handleCategoryClick('admins')} setGreen={category === 'admins'} />
                     <Button icon={<Receipt />} text="Class Fee" onClick={() => handleCategoryClick('fees')} setGreen={category === 'fees'} />
-                    {/* <Button icon={<UserRoundCog />} text="Allot Teachers" onClick={() => handleCategoryClick('teachers')} setGreen={category === 'teachers'} /> */}
+                    <Button icon={<UserRoundCog />} text="Allot Teachers" onClick={() => handleCategoryClick('teachers')} setGreen={category === 'teachers'} />
                     {/* <Button icon={<FileUser />} text="Assign Class Incharge" onClick={() => handleCategoryClick('incharges')} setGreen={category === 'incharges'} /> */}
                 </div>
             </div>
@@ -135,6 +162,13 @@ export default function Settings() {
                 <ShowClassesFee classesFee={classesFee} setLoading={setLoading} fetchClassFees = {fetchClassFees} />
             )}
 
+            {category === 'teachers' && (
+                <ShowTeachers teachersData={teachers} setLoading = {setLoading} />
+            )}
+
+            {/* {category === 'incharges' && (
+                <ShowClassIncharge setLoading = {setLoading}  />
+            )} */}
         </div>
     )
 }

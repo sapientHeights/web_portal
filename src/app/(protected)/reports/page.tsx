@@ -200,7 +200,7 @@ export default function Reports() {
 
 
             {dialog.openDialog && dialog.selectedData && (
-                <DataDialog dialog={dialog} setDialog={setDialog} reportType={reportType} />
+                <DataDialog dialog={dialog} setDialog={setDialog} reportType={reportType} getData = {reportType === "teachers" ? getTeachersData : getStudentsData} />
             )}
 
         </div>
