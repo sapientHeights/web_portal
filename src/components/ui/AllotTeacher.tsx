@@ -95,7 +95,7 @@ export default function AllotTeacher({ setShowDialog, selectedTeacher, setLoadin
                     {!loading && (
                         <form onSubmit={handleSubmit}>
                             <div className="grid grid-cols-1 gap-6">
-                                <InputField label="Enter name" name="name" value={selectedTeacher ? selectedTeacher.teacherName : ''} onChange={() => { }} />
+                                <InputField label="Enter name" name="name" value={selectedTeacher ? selectedTeacher.teacherName : ''} onChange={() => { }} disabled />
                                 <SelectField label="Session" name="sessionId" value={classTeacherData.sessionId} onChange={handleChange} options={sessions} required />
                                 <SelectField
                                     label="Class"

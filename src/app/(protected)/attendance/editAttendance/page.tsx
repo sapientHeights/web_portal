@@ -226,8 +226,29 @@ export default function EditAttendance() {
                                         <td className="px-4 py-6">{data.sId}</td>
                                         <td className="px-4 py-6">{data.studentName}</td>
                                         <td className="px-4 py-6">
-                                            <SelectField name="att" label="" value={value} options={["Present", "Absent", "Leave"]} onChange={(e) => handleAttChange((e.target as HTMLSelectElement).value, data.sId)} />
+                                            <div className="flex justify-center gap-2">
+                                                {['P', 'A', 'L'].map((attType) => (
+                                                    <button
+                                                        key={attType}
+                                                        onClick={() => handleAttChange(
+                                                            attType === 'P' ? 'Present' : attType === 'A' ? 'Absent' : 'Leave',
+                                                            data.sId
+                                                        )}
+                                                        className={`px-3 py-1 rounded-full text-sm font-medium 
+                                                            ${data.att === attType
+                                                                ? attType === 'P'
+                                                                    ? 'bg-green-500 text-white'
+                                                                    : attType === 'A'
+                                                                        ? 'bg-red-500 text-white'
+                                                                        : 'bg-yellow-400 text-white'
+                                                                : 'bg-gray-200 text-gray-800 hover:bg-gray-300 transition'}`}
+                                                    >
+                                                        {attType === 'P' ? 'Present' : attType === 'A' ? 'Absent' : 'Leave'}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </td>
+
                                     </tr>
                                 )
                             })}

@@ -14,7 +14,7 @@ import { FileUser, Receipt, ShieldUser, StepBack, UserRoundCog } from "lucide-re
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
-// import ShowClassIncharge from "@/components/ui/ShowClassIncharge";
+import ShowClassIncharge from "@/components/ui/ShowClassIncharge";
 
 type UserData = {
     email: string;
@@ -120,6 +120,7 @@ export default function Settings() {
         if (category === 'admins') fetchAdmins();
         else if (category === 'fees') fetchClassFees();
         else if (category === 'teachers') fetchTeachers();
+        else if(category === 'incharges' && teachers === null) fetchTeachers(); 
     }, [category])
 
     const goBack = () => {
@@ -150,7 +151,7 @@ export default function Settings() {
                     <Button icon={<ShieldUser />} text="Add or Remove Admins" onClick={() => handleCategoryClick('admins')} setGreen={category === 'admins'} />
                     <Button icon={<Receipt />} text="Class Fee" onClick={() => handleCategoryClick('fees')} setGreen={category === 'fees'} />
                     <Button icon={<UserRoundCog />} text="Allot Teachers" onClick={() => handleCategoryClick('teachers')} setGreen={category === 'teachers'} />
-                    {/* <Button icon={<FileUser />} text="Assign Class Incharge" onClick={() => handleCategoryClick('incharges')} setGreen={category === 'incharges'} /> */}
+                    <Button icon={<FileUser />} text="Assign Class Incharge" onClick={() => handleCategoryClick('incharges')} setGreen={category === 'incharges'} />
                 </div>
             </div>
 
@@ -166,9 +167,9 @@ export default function Settings() {
                 <ShowTeachers teachersData={teachers} setLoading = {setLoading} />
             )}
 
-            {/* {category === 'incharges' && (
-                <ShowClassIncharge setLoading = {setLoading}  />
-            )} */}
+            {category === 'incharges' && (
+                <ShowClassIncharge teachersData={teachers} />
+            )}
         </div>
     )
 }
