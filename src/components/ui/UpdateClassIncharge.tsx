@@ -85,7 +85,7 @@ export default function UpdateClassIncharge({ classInchargeData, setShowDialog, 
         }
     }
 
-    const reAllotToast = (classInchargeData: ClassInchargeData, selectedTeacherId: String) => {
+    const reAllotToast = (classInchargeData: ClassInchargeData, selectedTeacherId: string) => {
         toast.custom((t) => (
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 px-6 py-4 w-[320px] text-center animate-slide-in">
                 <h2 className="text-lg font-semibold text-gray-800 mb-2">Re-Allot Class Teacher?</h2>
@@ -114,7 +114,7 @@ export default function UpdateClassIncharge({ classInchargeData, setShowDialog, 
         ));
     }
 
-    const reAllotTeacher = async (classInchargeData: ClassInchargeData, selectedTeacherId: String) => {
+    const reAllotTeacher = async (classInchargeData: ClassInchargeData, selectedTeacherId: string) => {
         setLoading(true);
 
         const dataToSend = {
