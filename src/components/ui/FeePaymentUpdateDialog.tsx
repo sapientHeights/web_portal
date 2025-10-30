@@ -97,7 +97,7 @@ export default function FeePaymentUpdateDialog({ selectedFeePayment, setSelected
                                 <InputField label="Amount" name="amount" value={selectedFeePayment.amount} onChange={handleChange} required />
                                 <SelectField label="Payment Mode" name="paymentMode" value={selectedFeePayment.paymentMode} onChange={handleChange} options={['Cash', 'UPI', 'Card']} disabled />
                             </div>
-                            <TextAreaField label="Remark" name="remark" value={selectedFeePayment.remark} onChange={handleChange} maxLength={100} required />
+                            <TextAreaField label="Remark" name="remark" value={selectedFeePayment.remark} onChange={handleChange} maxLength={100} />
                         </div>
                         <FormFooterActions primaryLabel="Update" cancel={() => setShowPaymentUpdate(false)} />
                     </FormSection>

@@ -23,7 +23,7 @@ export default function FeeUpdateDialog({ category, setUpdateFee, selectedStd, s
     const [paymentDetails, setPaymentDetails] = useState({
         date: '', mode: '', remark: ''
     });
-    
+
     if (!selectedStd) {
         return;
     }
@@ -71,7 +71,7 @@ export default function FeeUpdateDialog({ category, setUpdateFee, selectedStd, s
         e.preventDefault();
 
         if (FeeMaster) {
-            if ((selectedStd.fee - selectedStd.discount) > (selectedStd.paid)) {
+            if ((selectedStd.paid) > (selectedStd.fee - selectedStd.discount)) {
                 toast.error("Some fee has already been paid.");
                 return;
             }
@@ -133,7 +133,7 @@ export default function FeeUpdateDialog({ category, setUpdateFee, selectedStd, s
                                         <InputField label="Payment Date" name="date" value={paymentDetails.date} onChange={handleChange} type="date" required />
                                         <SelectField label="Payment Mode" name="mode" value={paymentDetails.mode} onChange={handleChange} options={['Cash', 'UPI', 'Card']} required />
                                     </div>
-                                    <TextAreaField label="Remark" name="remark" value={paymentDetails.remark} onChange={handleChange} maxLength={100} required />
+                                    <TextAreaField label="Remark" name="remark" value={paymentDetails.remark} onChange={handleChange} maxLength={100} />
                                 </>
                             )}
                         </div>

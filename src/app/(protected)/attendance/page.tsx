@@ -77,7 +77,7 @@ export default function Attendance() {
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
                 <form onSubmit={handleSubmit}>
-                    <FormSection title="Enter Academic Details" icon={<Book />} margin={false}>
+                    <FormSection title="Enter Attendance Details" icon={<Book />} margin={false}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                             <SelectField label="Session" name="sessionId" value={academicData.sessionId} onChange={handleChange} options={sessions} required />
                             <SelectField
@@ -90,7 +90,7 @@ export default function Attendance() {
                             />
                             <SelectField label="Section" name="section" value={academicData.section} onChange={handleChange} options={sections} required disabled={academicData.studentClass === ""} />
                             <SelectField label="Subject" name="subject" value={academicData.subject} onChange={handleChange} options={subjects} required disabled={academicData.studentClass === ""} />
-                            <InputField label="Class Date" name="date" type="date" value={academicData.date} onChange={handleChange} disabled />
+                            <InputField label="Date" name="date" type="date" value={academicData.date} onChange={handleChange} disabled />
                         </div>
                         <FormFooterActions primaryLabel={'Get Attendance Data'} reset={reset} />
                     </FormSection>

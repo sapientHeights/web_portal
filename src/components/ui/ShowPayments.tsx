@@ -149,7 +149,6 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
                                         <th className="px-6 py-4">Amount</th>
                                         <th className="px-6 py-4">Date</th>
                                         <th className="px-6 py-4">Mode</th>
-                                        <th className="px-6 py-4">Remark</th>
                                         <th className="px-1 py-4"></th>
                                         <th className="px-1 py-4"></th>
                                     </tr>
@@ -157,7 +156,7 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
                                 <tbody className="divide-y divide-gray-200 text-center">
                                     {(paymentsData === null || paymentsData.length === 0) && (
                                         <tr>
-                                            <td className="px-6 py-4" colSpan={5}>No Data available</td>
+                                            <td className="px-6 py-4" colSpan={4}>No Data available</td>
                                         </tr>
                                     )}
                                     {paymentsData && paymentsData.length > 0 && paymentsData.map((data, index) => (
@@ -166,7 +165,6 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
                                             <td className="px-6 py-4">{data.amount}</td>
                                             <td className="px-6 py-4">{data.paymentDate}</td>
                                             <td className="px-6 py-4">{data.paymentMode}</td>
-                                            <td className="px-6 py-4">{data.remark}</td>
                                             <td className="px-2 py-4 text-blue-500 cursor-pointer" onClick={() => showUpdateDialog(data)}>{<SquarePen size={12} />}</td>
                                             <td className="px-2 py-4 text-red-500 cursor-pointer" onClick={() => deletePaymentToast(data)}>{<Delete size={12} />}</td>
                                         </tr>

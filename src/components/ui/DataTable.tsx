@@ -33,13 +33,19 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
 
     useEffect(() => {
         if (searchTerm === '') {
-            setFilteredData(allData);
+            const sortedData = allData 
+                ? reportType === 'students' 
+                    ? [...(allData as StudentAllData[])].sort((a, b) => a.studentName.localeCompare(b.studentName))
+                    : [...(allData as TeacherAllData[])].sort((a, b) => a.teacherName.localeCompare(b.teacherName))
+                : []
+
+            setFilteredData(sortedData);
         }
         else {
             const searchedData = allData
                 ? reportType === 'students'
-                    ? (allData as StudentAllData[]).filter((data) => data.studentName.toLowerCase().includes(searchTerm.toLowerCase()))
-                    : (allData as TeacherAllData[]).filter((data) => data.teacherName.toLowerCase().includes(searchTerm.toLowerCase()))
+                    ? (allData as StudentAllData[]).filter((data) => data.studentName.toLowerCase().includes(searchTerm.toLowerCase())).sort((a, b) => a.studentName.localeCompare(b.studentName))
+                    : (allData as TeacherAllData[]).filter((data) => data.teacherName.toLowerCase().includes(searchTerm.toLowerCase())).sort((a, b) => a.teacherName.localeCompare(b.teacherName))
                 : null;
             
             setFilteredData(searchedData);
@@ -82,6 +88,7 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
                 <table className="min-w-[600px] w-full text-sm text-left text-gray-700">
                     <thead className="bg-gray-100 sticky top-0 z-10 text-xs uppercase text-gray-600 tracking-wider text-center">
                         <tr>
+                            <th className="px-6 py-4">S.No.</th>
                             {columns.map((column, index) => (
                                 <th key={index} className="px-6 py-4">{column}</th>
                             ))}
@@ -91,6 +98,7 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
                     <tbody className="divide-y divide-gray-200 text-center">
                         {filteredData && filteredData.map((data, index) => (
                             <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-6 py-4">{index+1}</td>
                                 {data && values.map((value, vIndex) => (
                                     <td key={vIndex} className="px-6 py-4">{
                                         reportType === "students" ? (data as StudentData)[value as keyof StudentData] : (data as TeacherData)[value as keyof TeacherData]
