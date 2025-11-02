@@ -13,3 +13,15 @@ export type ClassFeeData = {
     classId: string;
     fee: number;
 }
+
+export type StudentPaymentReport = {
+    sessionId: string;
+    sId: string;
+    classId: string;
+    section: string;
+    amount: string;
+    paymentDate: string;
+    paymentMode: string;
+    remark: string;
+    studentName: string;
+}

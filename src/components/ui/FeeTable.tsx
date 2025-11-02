@@ -30,11 +30,12 @@ export default function Table({feeData, category, setUpdateFee, setSelectedStd, 
     setShowPayments(true);
   }
 
-  return (
+  return (    
     <div className="w-full max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg shadow-sm border border-gray-200 bg-white">
       <table className="min-w-[600px] w-full text-sm text-left text-gray-700">
         <thead className="bg-gray-100 sticky top-0 z-10 text-xs uppercase text-gray-600 tracking-wider text-left">
           <tr>
+            <th className="px-6 py-4">S.No.</th>
             <th className="px-6 py-4">Student Name</th>
             {showFeeMaster && (
               <>
@@ -53,8 +54,14 @@ export default function Table({feeData, category, setUpdateFee, setSelectedStd, 
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 text-left">
-          {feeData.map((student, index) => (
+          {feeData.length === 0 && (
+            <tr className="hover:bg-gray-50 transition-colors">
+              <td colSpan={5} className="px-6 py-8 font-semibold text-center">No Data Available</td>
+            </tr>
+          )}
+          {feeData.length > 0 && feeData.map((student, index) => (
             <tr key={index} className="hover:bg-gray-50 transition-colors">
+              <td className="px-6 py-4 font-medium">{index+1}</td>
               <td className="px-6 py-4 font-medium">{student.studentName}</td>
               {showFeeMaster && (
                 <>
@@ -72,7 +79,7 @@ export default function Table({feeData, category, setUpdateFee, setSelectedStd, 
               <td>{showFeeMaster ? 
                 <SquarePen size={16} className="cursor-pointer hover:text-blue-800" onClick={() => edit(student)}/> 
               : 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mr-5">
                   <Sheet size={16} className="cursor-pointer hover:text-green-800" onClick={() => payments(student)}/>
                   <ListPlus size={16} className="cursor-pointer hover:text-blue-800" onClick={() => edit(student)}/>
                 </div>}
