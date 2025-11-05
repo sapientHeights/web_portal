@@ -12,7 +12,6 @@ import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useSections } from "@/hooks/useSections";
 import { useSessions } from "@/hooks/useSessions";
-import { useSubjects } from "@/hooks/useSubjects";
 import { Book, StepBack } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -24,7 +23,7 @@ export default function Attendance() {
     const [pageLoading, setPageLoading] = useState(false);
 
     const initialAcademicData = {
-        sessionId: "", studentClass: "", section: "", subject: "", date: new Date().toISOString().split('T')[0] 
+        sessionId: "", studentClass: "", section: "", date: new Date().toISOString().split('T')[0] 
     }
 
     const [academicData, setAcademicData] = useState(initialAcademicData);
@@ -32,8 +31,6 @@ export default function Attendance() {
     const { classes, isLoading: classesLoading } = useClasses();
     const { sections, isLoading: sectionsLoading } = useSections(academicData.studentClass);
     const { sessions, isLoading: sessionsLoading } = useSessions();
-    const { subjects, isLoading: subjectsLoading } = useSubjects(academicData.studentClass);
-
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -64,7 +61,7 @@ export default function Attendance() {
         router.push('/attendance/editAttendance');
     }
 
-    const isLoading = pageLoading || classesLoading || sectionsLoading || sessionsLoading || subjectsLoading;
+    const isLoading = pageLoading || classesLoading || sectionsLoading || sessionsLoading;
     if (isLoading) {
         return <FullPageLoader />
     }
@@ -89,7 +86,6 @@ export default function Attendance() {
                                 required
                             />
                             <SelectField label="Section" name="section" value={academicData.section} onChange={handleChange} options={sections} required disabled={academicData.studentClass === ""} />
-                            <SelectField label="Subject" name="subject" value={academicData.subject} onChange={handleChange} options={subjects} required disabled={academicData.studentClass === ""} />
                             <InputField label="Date" name="date" type="date" value={academicData.date} onChange={handleChange} disabled />
                         </div>
                         <FormFooterActions primaryLabel={'Get Attendance Data'} reset={reset} />

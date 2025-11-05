@@ -14,7 +14,7 @@ import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useSections } from "@/hooks/useSections";
 import { useSessions } from "@/hooks/useSessions";
-import { Receipt, School, StepBack, GraduationCap, FileChartColumnIncreasing, CalendarDays, CalendarSearch, TrendingUpDown, ClipboardList, IndianRupee } from "lucide-react";
+import { Receipt, School, StepBack, GraduationCap, FileChartColumnIncreasing, CalendarDays, CalendarSearch, TrendingUpDown, ClipboardList, IndianRupee, Banknote, CreditCard } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -78,6 +78,13 @@ export default function FeeManagement() {
     useEffect(() => {
         setNoData(true);
     }, [academicSelection])
+
+    useEffect(() => {
+        console.log("Fetched Data");
+        console.log(feeData);
+        console.log("Filtered Data - ");
+        console.log(filteredData);
+    }, [filteredData])
 
     const goBack = () => {
         router.back();
@@ -232,6 +239,28 @@ export default function FeeManagement() {
         }
     }
 
+    const calCashAmount = () => {
+        let sum = 0;
+        feePaymentsData.forEach(data => {
+            if(data.paymentMode === 'Cash'){
+                sum += Number(data.amount);
+            }
+        })
+
+        return sum;
+    }
+
+    const calOnlineAmount = () => {
+        let sum = 0;
+        feePaymentsData.forEach(data => {
+            if(data.paymentMode === 'UPI' || data.paymentMode === 'Card'){
+                sum += Number(data.amount);
+            }
+        })
+
+        return sum;
+    }
+
     const calTotalAmount = () => {
         let sum = 0;
         feePaymentsData.forEach(data => {
@@ -317,9 +346,23 @@ export default function FeeManagement() {
             </div>
 
             {noData === false && category === 'feeReport' && (
-                <div className="max-w-4xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 mb-10 md:p-10">
-                    <FormSection icon={<ClipboardList />} title="Collection" margin={false}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="max-w-5xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 mb-10 md:p-10">
+                    <FormSection icon={<ClipboardList />} title="Collections" margin={false}>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="max-w-md bg-green-600 text-white rounded-4xl shadow-xl p-6 md:p-10">
+                                <div className="flex flex-row justify-between items-center gap-2">
+                                    <span className=""><CreditCard size={40} /></span>
+                                    <p>Online Collection:</p>
+                                    <h3 className="text-2xl">{calOnlineAmount()}</h3>
+                                </div>
+                            </div>
+                            <div className="max-w-md bg-green-600 text-white rounded-4xl shadow-xl p-6 md:p-10">
+                                <div className="flex flex-row justify-between items-center gap-2">
+                                    <span className=""><Banknote size={40} /></span>
+                                    <p>Cash Collection:</p>
+                                    <h3 className="text-2xl">{calCashAmount()}</h3>
+                                </div>
+                            </div>
                             <div className="max-w-md bg-green-600 text-white rounded-4xl shadow-xl p-6 md:p-10">
                                 <div className="flex flex-row justify-between items-center gap-2">
                                     <span className=""><IndianRupee size={40} /></span>

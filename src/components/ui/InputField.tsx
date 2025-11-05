@@ -23,7 +23,7 @@ export default function InputField({ label, name, value, onChange, type = "text"
                 maxLength={maxLength}
                 minLength={minLength}
                 disabled={disabled}
-                className={`w-full border border-gray-300 rounded-md ${disabled ? 'bg-gray-200 cursor-not-allowed' : 'bg-white' } px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                className={`w-full border border-gray-300 rounded-md ${disabled ? 'bg-gray-200 cursor-not-allowed' : 'bg-white' } px-3 py-2 text-black focus:outline-none focus:ring-2 focus:ring-purple-500`}
             />
         </div>
     )

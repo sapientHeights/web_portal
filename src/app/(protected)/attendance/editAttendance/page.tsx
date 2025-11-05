@@ -4,7 +4,6 @@ import Button from "@/components/ui/Button";
 import Footer from "@/components/ui/Footer";
 import FullPageLoader from "@/components/ui/FullPageLoader";
 import NoDataSection from "@/components/ui/NoDataSection";
-import SelectField from "@/components/ui/SelectField";
 import UserInfo from "@/components/ui/UserInfo";
 import { useUser } from "@/context/UserContext";
 import { CalendarRange, School, Send, StepBack, Workflow } from "lucide-react";
@@ -19,7 +18,6 @@ type AttData = {
     sessionId: string;
     classId: string;
     section: string;
-    subjectId: string;
     classDate: string;
     att: string;
     markedBy: string;
@@ -52,7 +50,6 @@ export default function EditAttendance() {
                     sessionId: academicData.sessionId,
                     classId: academicData.studentClass,
                     section: academicData.section,
-                    subjectId: academicData.subject,
                     date: academicData.date
                 }),
             });
@@ -94,7 +91,6 @@ export default function EditAttendance() {
                     sessionId: academicData.sessionId,
                     classId: academicData.studentClass,
                     section: academicData.section,
-                    subjectId: academicData.subject,
                     classDate: academicData.date,
                     att,
                     markedBy: user ? user.email : 'SYSTEM'
@@ -118,7 +114,6 @@ export default function EditAttendance() {
                 sessionId: academicData.sessionId,
                 classId: academicData.studentClass,
                 section: academicData.section,
-                subjectId: academicData.subject,
                 classDate: academicData.date,
                 att: data.att,
                 markedBy: user ? user.email : 'SYSTEM'
@@ -195,7 +190,6 @@ export default function EditAttendance() {
                 <div className="flex flex-col md:flex-row justify-between items-center text-sm font-sans tracking-wider">
                     {/* <p><b>Teacher Name:</b></p> */}
                     <p><b>Total Students</b>: {attData.length}</p>
-                    <p><b>Subject</b>: {academicData.subject}</p>
                     <p><b>Date</b>: {academicData.date}</p>
                 </div>
             </div>
