@@ -1,6 +1,7 @@
 'use client';
 
 import { StudentPaymentReport } from "@/types/fee";
+import Button from "./Button";
 
 type Props = {
   feePaymentsData: StudentPaymentReport[];
@@ -10,6 +11,7 @@ type Props = {
 export default function ShowPaymentsReport({feePaymentsData, subCategory} : Props) {
   const showDailyPayment = subCategory === 'daily';
   const showMonthlyPayment = subCategory === 'monthly';
+  const showRangePayment = subCategory === 'range';
 
   return (    
     <div className="w-full max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg shadow-sm border border-gray-200 bg-white">
@@ -17,13 +19,13 @@ export default function ShowPaymentsReport({feePaymentsData, subCategory} : Prop
         <thead className="bg-gray-100 sticky top-0 z-10 text-xs uppercase text-gray-600 tracking-wider text-left">
           <tr>
             <th className="px-6 py-4">S.No.</th>
-            {showDailyPayment && (
+            {!showMonthlyPayment && (
               <th className="px-6 py-4">Session Id</th>
             )}
             <th className="px-6 py-4">Student Name</th>
             <th className="px-6 py-4">Class</th>
             <th className="px-6 py-4">Section</th>
-            {showMonthlyPayment && (
+            {!showDailyPayment && (
                 <th className="px-6 py-4">Date</th>
             )}
             <th className="px-6 py-4">Mode</th>
@@ -40,13 +42,13 @@ export default function ShowPaymentsReport({feePaymentsData, subCategory} : Prop
           {feePaymentsData.length > 0 && feePaymentsData.map((student, index) => (
             <tr key={index} className="hover:bg-gray-50 transition-colors">
               <td className="px-6 py-4 font-medium">{index+1}</td>
-              {showDailyPayment && (
+              {!showMonthlyPayment && (
                 <td className="px-6 py-4 font-medium">{student.sessionId}</td>
               )}
               <td className="px-6 py-4 font-medium">{student.studentName}</td>
               <td className="px-6 py-4 font-medium">{student.classId}</td>
               <td className="px-6 py-4 font-medium">{student.section}</td>
-              {showMonthlyPayment && (
+              {!showDailyPayment && (
                 <td className="px-6 py-4 font-medium">{student.paymentDate}</td>
               )}
               <td className="px-6 py-4 font-medium">{student.paymentMode}</td>

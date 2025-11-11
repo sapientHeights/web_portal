@@ -14,7 +14,7 @@ import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useSections } from "@/hooks/useSections";
 import { useSessions } from "@/hooks/useSessions";
-import { Receipt, School, StepBack, GraduationCap, FileChartColumnIncreasing, CalendarDays, CalendarSearch, TrendingUpDown, ClipboardList, IndianRupee, Banknote, CreditCard } from "lucide-react";
+import { Receipt, School, StepBack, GraduationCap, FileChartColumnIncreasing, CalendarDays, CalendarSearch, TrendingUpDown, ClipboardList, IndianRupee, Banknote, CreditCard, CalendarRange } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -53,6 +53,8 @@ export default function FeeManagement() {
 
     const [sessionId, setSessionId] = useState('');
     const [month, setMonth] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     useEffect(() => {
         if(searchTerm === ''){
@@ -133,6 +135,14 @@ export default function FeeManagement() {
         if(name === 'month'){
             setMonth(value);
         }
+
+        if(name === 'sDate'){
+            setStartDate(value);
+        }
+
+        if(name === 'eDate'){
+            setEndDate(value);
+        }
     }
 
     const getFeeData = async() => {
@@ -172,7 +182,7 @@ export default function FeeManagement() {
 
     const getFeeReportData = async () => {
         try {
-            const fileName = subCategory === 'daily' ? 'getFeePaymentsByDate.php' : 'getFeePaymentsByMonth.php';
+            const fileName = subCategory === 'daily' ? 'getFeePaymentsByDate.php' : subCategory === 'monthly' ? 'getFeePaymentsByMonth.php' : 'getFeePaymentsByRange.php';
             const monthNumber = new Date(`${month} 1, 2000`).getMonth() + 1;
             let dataToSend = {}
             
@@ -186,6 +196,13 @@ export default function FeeManagement() {
                 dataToSend = {
                     sessionId: sessionId,
                     month: monthNumber
+                }
+            }
+
+            if(subCategory === 'range'){
+                dataToSend = {
+                    startDate,
+                    endDate
                 }
             }
 
@@ -239,6 +256,47 @@ export default function FeeManagement() {
         }
     }
 
+    const exportToExcel = async (data : FeeData[] | StudentPaymentReport[]) => {
+        if (!data || data.length === 0) {
+            toast.error("No data to export");
+            return;
+        }
+
+        try {
+            const res = await fetch("/api/exportExcel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data }),
+            });
+
+            if (!res.ok) {
+            toast.error("Failed to download Excel");
+            return;
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+
+            const start = category === 'feeReport' ? 'Fee Collection' : 'Fee Data';
+            const middle = category === 'feeReport' ? subCategory : '';
+            const end = category === 'feeReport' ? subCategory === 'daily' ? date : subCategory === 'monthly' ? (sessionId + '_' + month) : (startDate + '_' + endDate) : (academicSelection.session + '_' + academicSelection.class + '_' + academicSelection.section); 
+
+            let finalName = start + ' ' + middle + ' ' + end;
+            if(searchTerm != ''){
+                finalName += '_searchTerm_' + searchTerm;
+            }
+
+            a.download = (finalName + '.xlsx');
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error(err);
+            toast.error("An error occurred while exporting Excel");
+        }
+    }
+
     const calCashAmount = () => {
         let sum = 0;
         feePaymentsData.forEach(data => {
@@ -254,6 +312,17 @@ export default function FeeManagement() {
         let sum = 0;
         feePaymentsData.forEach(data => {
             if(data.paymentMode === 'UPI' || data.paymentMode === 'Card'){
+                sum += Number(data.amount);
+            }
+        })
+
+        return sum;
+    }
+
+    const calChequeAmount = () => {
+        let sum = 0;
+        feePaymentsData.forEach(data => {
+            if(data.paymentMode === 'Cheque'){
                 sum += Number(data.amount);
             }
         })
@@ -299,11 +368,12 @@ export default function FeeManagement() {
             </div>
 
             {category === 'feeReport' && (
-                <div className="max-w-2xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
+                <div className="max-w-4xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
                     <FormSection icon={<TrendingUpDown />} title="Select Payments Frequency" margin={false} >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <Button icon={<CalendarDays />} text="Daily" onClick={() => handleSubCategoryClick('daily')} setGreen={subCategory === 'daily'} />
                         <Button icon={<CalendarSearch />} text="Monthly" onClick={() => handleSubCategoryClick('monthly')} setGreen={subCategory === 'monthly'} />
+                        <Button icon={<CalendarRange />} text="Range" onClick={() => handleSubCategoryClick('range')} setGreen={subCategory === 'range'} />
                     </div>
                     </FormSection>
                 </div>
@@ -330,6 +400,12 @@ export default function FeeManagement() {
                                     <>
                                     <SelectField label="Select Session" name="sessionId" value={sessionId} options={sessions} onChange={handleReportFieldsChange} />
                                     <SelectField label="Select Month" name="month" value={month} options={months} onChange={handleReportFieldsChange} />
+                                    </>
+                                )}
+                                {subCategory === 'range' && (
+                                    <>
+                                    <InputField type="date" value={startDate} label="Enter Start Date" name="sDate" onChange={handleReportFieldsChange}/>
+                                    <InputField type="date" value={endDate} label="Enter End Date" name="eDate" onChange={handleReportFieldsChange}/>
                                     </>
                                 )}
                             </div>
@@ -366,8 +442,8 @@ export default function FeeManagement() {
                             <div className="max-w-md bg-green-600 text-white rounded-4xl shadow-xl p-6 md:p-10">
                                 <div className="flex flex-row justify-between items-center gap-2">
                                     <span className=""><IndianRupee size={40} /></span>
-                                    <p>Total Amount:</p>
-                                    <h3 className="text-2xl">{calTotalAmount()}</h3>
+                                    <p>Cheque Collection:</p>
+                                    <h3 className="text-2xl">{calChequeAmount()}</h3>
                                 </div>
                             </div>
                         </div>
@@ -385,9 +461,19 @@ export default function FeeManagement() {
                             <InputField label="Search by Name" name="search" value={searchTerm} onChange={handleSearchChange} />
                         </div>
                         {category === 'feeReport' ? (
+                            <>
                             <ShowPaymentsReport feePaymentsData = {filteredFeePaymentsData} subCategory={subCategory} />
+                            <div className="mt-6">
+                                <Button text="Export to Excel" icon={<></>} onClick={() => exportToExcel(filteredFeePaymentsData)} setGreen />
+                            </div>
+                            </>
                         ) : (
+                            <>
                             <FeeTable feeData={filteredData} category={category} setUpdateFee={setUpdateFee} setSelectedStd={setSelectedStd} getFeeData={getFeeData} />
+                            {/* <div>
+                                <Button text="Export to Excel" icon={<></>} onClick={() => {}} setGreen />
+                            </div> */}
+                            </>
                         )}
                         </>   
                         

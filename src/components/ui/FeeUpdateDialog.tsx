@@ -131,7 +131,7 @@ export default function FeeUpdateDialog({ category, setUpdateFee, selectedStd, s
                                     <InputField label="Paid Amount" name="paid" value={selectedStd.paid.toString()} onChange={handleChange} type="number" required />
                                     <div className="grid grid-cols-2 items-center gap-10">
                                         <InputField label="Payment Date" name="date" value={paymentDetails.date} onChange={handleChange} type="date" required />
-                                        <SelectField label="Payment Mode" name="mode" value={paymentDetails.mode} onChange={handleChange} options={['Cash', 'UPI', 'Card']} required />
+                                        <SelectField label="Payment Mode" name="mode" value={paymentDetails.mode} onChange={handleChange} options={['Cash', 'UPI', 'Card', 'Cheque']} required />
                                     </div>
                                     <TextAreaField label="Remark" name="remark" value={paymentDetails.remark} onChange={handleChange} maxLength={100} />
                                 </>
