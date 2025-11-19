@@ -23,7 +23,7 @@ export default function Attendance() {
     const [pageLoading, setPageLoading] = useState(false);
 
     const initialAcademicData = {
-        sessionId: "", studentClass: "", section: "", date: new Date().toISOString().split('T')[0] 
+        sessionId: "", studentClass: "", section: "", date: new Date().toISOString().split('T')[0]
     }
 
     const [academicData, setAcademicData] = useState(initialAcademicData);
@@ -43,7 +43,7 @@ export default function Attendance() {
     }
 
     const reset = () => {
-        if(JSON.stringify(academicData) === JSON.stringify(initialAcademicData)){
+        if (JSON.stringify(academicData) === JSON.stringify(initialAcademicData)) {
             toast.error("Nothing to clear!");
             return;
         }
@@ -53,9 +53,16 @@ export default function Attendance() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if(JSON.stringify(academicData) === JSON.stringify(initialAcademicData)){
+        if (JSON.stringify(academicData) === JSON.stringify(initialAcademicData)) {
             toast.error("Please fill all the required data");
+            return;
         }
+
+        if (academicData.date > new Date().toISOString().split('T')[0]) {
+            toast.error('Invalid date');
+            return;
+        }
+
         setPageLoading(true);
         sessionStorage.setItem('academicData', JSON.stringify(academicData));
         router.push('/attendance/editAttendance');
@@ -86,7 +93,7 @@ export default function Attendance() {
                                 required
                             />
                             <SelectField label="Section" name="section" value={academicData.section} onChange={handleChange} options={sections} required disabled={academicData.studentClass === ""} />
-                            <InputField label="Date" name="date" type="date" value={academicData.date} onChange={handleChange} disabled />
+                            <InputField label="Date" name="date" type="date" value={academicData.date} onChange={handleChange} />
                         </div>
                         <FormFooterActions primaryLabel={'Get Attendance Data'} reset={reset} />
                     </FormSection>
