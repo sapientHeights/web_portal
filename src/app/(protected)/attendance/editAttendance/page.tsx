@@ -3,6 +3,7 @@
 import Button from "@/components/ui/Button";
 import Footer from "@/components/ui/Footer";
 import FullPageLoader from "@/components/ui/FullPageLoader";
+import InputField from "@/components/ui/InputField";
 import NoDataSection from "@/components/ui/NoDataSection";
 import UserInfo from "@/components/ui/UserInfo";
 import { useUser } from "@/context/UserContext";
@@ -29,6 +30,8 @@ export default function EditAttendance() {
     const { user } = useUser();
     const [attData, setAttData] = useState<AttData[]>([]);
     const [noData, setNoData] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filteredAttData, setFilteredAttData] = useState<AttData[]>([]);
 
     const jsonData = sessionStorage.getItem('academicData');
     const academicData = jsonData ? JSON.parse(jsonData) : null;
@@ -56,7 +59,9 @@ export default function EditAttendance() {
 
             const data = await res.json();
             if (!data.error) {
-                setAttData(data.attData);
+                const sortedAttData = data.attData.sort((a: AttData, b: AttData) => a.studentName.localeCompare(b.studentName));
+                setAttData(sortedAttData);
+                setFilteredAttData(sortedAttData);
             }
             else {
                 setNoData(true);
@@ -76,13 +81,45 @@ export default function EditAttendance() {
         fetchAttData();
     }, [])
 
+
+    useEffect(() => {
+        if(searchTerm === ''){
+            setFilteredAttData(attData);
+        }
+        else{
+            const filteredData = attData.filter(data => data.studentName.toLowerCase().includes(searchTerm.toLowerCase()));
+            setFilteredAttData(filteredData);
+        }
+    }, [searchTerm])
+
     const goBack = () => {
         router.back();
+    }
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const {name, value} = e.target;
+        setSearchTerm(value);
     }
 
     const handleAttChange = (selectedAtt: string, sId: string) => {
         const att = selectedAtt === 'Present' ? 'P' : selectedAtt === 'Absent' ? 'A' : 'L';
         setAttData((prevData) =>
+            prevData.map((data) =>
+                data.sId === sId ? {
+                    sId,
+                    studentName: data.studentName,
+                    teacherName: data.teacherName,
+                    sessionId: academicData.sessionId,
+                    classId: academicData.studentClass,
+                    section: academicData.section,
+                    classDate: academicData.date,
+                    att,
+                    markedBy: user ? user.email : 'SYSTEM'
+                } : data
+            )
+        );
+
+        setFilteredAttData((prevData) =>
             prevData.map((data) =>
                 data.sId === sId ? {
                     sId,
@@ -196,6 +233,11 @@ export default function EditAttendance() {
 
             <div className="max-w-7xl mx-auto bg-gray-50 shadow-xl p-6 md:p-10 mb-10 rounded-3xl">
                 <h3 className="text-black text-2xl text-center mb-10 font-mono">Student Data - Mark Attendance</h3>
+
+                <div className="mb-8">
+                    <InputField label="Search by Student Name" name="search" value={searchTerm} onChange={handleSearchChange} />
+                </div>
+
                 {/* Scrollable Table Wrapper */}
                 <div className="overflow-auto max-h-[600px]">
                     <table className="min-w-[600px] w-full text-sm text-left text-gray-800">
@@ -208,7 +250,12 @@ export default function EditAttendance() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white text-center">
-                            {attData && attData.map((data, index) => {
+                            {filteredAttData && filteredAttData.length === 0 && (
+                                <tr className="p-10">
+                                    <td colSpan={4}><NoDataSection /></td>
+                                </tr>
+                            )}
+                            {filteredAttData && filteredAttData.map((data, index) => {
                                 let value = '';
                                 if (data.att === undefined) {
                                     data.att = 'P';

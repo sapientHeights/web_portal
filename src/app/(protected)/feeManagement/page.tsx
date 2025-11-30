@@ -81,13 +81,6 @@ export default function FeeManagement() {
         setNoData(true);
     }, [academicSelection])
 
-    useEffect(() => {
-        console.log("Fetched Data");
-        console.log(feeData);
-        console.log("Filtered Data - ");
-        console.log(filteredData);
-    }, [filteredData])
-
     const goBack = () => {
         router.back();
     }
@@ -470,9 +463,6 @@ export default function FeeManagement() {
                         ) : (
                             <>
                             <FeeTable feeData={filteredData} category={category} setUpdateFee={setUpdateFee} setSelectedStd={setSelectedStd} getFeeData={getFeeData} />
-                            {/* <div>
-                                <Button text="Export to Excel" icon={<></>} onClick={() => {}} setGreen />
-                            </div> */}
                             </>
                         )}
                         </>   
