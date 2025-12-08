@@ -1,4 +1,4 @@
-import { UserPlus, School, Receipt, FileBarChart, CalendarCheck, Settings } from 'lucide-react';
+import { UserPlus, School, Receipt, FileBarChart, CalendarCheck, Settings, Newspaper } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 type DashboardCard = {
@@ -53,4 +53,11 @@ export const dashboardCards: DashboardCard[] = [
         icon: Settings,
         module: 'settings',
     },
+    {
+        id: 7,
+        title: 'Notices',
+        description: 'Add notices for the students',
+        icon: Newspaper,
+        module: 'notice'
+    }
 ];

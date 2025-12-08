@@ -14,7 +14,7 @@ import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useSections } from "@/hooks/useSections";
 import { useSessions } from "@/hooks/useSessions";
-import { Receipt, School, StepBack, GraduationCap, FileChartColumnIncreasing, CalendarDays, CalendarSearch, TrendingUpDown, ClipboardList, IndianRupee, Banknote, CreditCard, CalendarRange } from "lucide-react";
+import { Receipt, School, StepBack, GraduationCap, FileChartColumnIncreasing, CalendarDays, CalendarSearch, TrendingUpDown, ClipboardList, IndianRupee, Banknote, CreditCard, CalendarRange, Signature } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -22,6 +22,7 @@ import FeeUpdateDialog from "@/components/ui/FeeUpdateDialog";
 import { FeeData, StudentPaymentReport } from "@/types/fee";
 import InputField from "@/components/ui/InputField";
 import ShowPaymentsReport from "@/components/ui/ShowPaymentsReport";
+import PaymentApprovals from "@/components/ui/PaymentApprovals";
 
 export default function FeeManagement() {
     const router = useRouter();
@@ -57,20 +58,20 @@ export default function FeeManagement() {
     const [endDate, setEndDate] = useState('');
 
     useEffect(() => {
-        if(searchTerm === ''){
-            if(category === 'feeReport'){
+        if (searchTerm === '') {
+            if (category === 'feeReport') {
                 setFilteredFeePaymentsData(feePaymentsData);
             }
-            else{
+            else {
                 setFilteredData(feeData);
             }
         }
-        else{
-            if(category === 'feeReport'){
+        else {
+            if (category === 'feeReport') {
                 const paymentsSearch = feePaymentsData.filter((data) => data.studentName.toLowerCase().includes(searchTerm.toLowerCase()));
                 setFilteredFeePaymentsData(paymentsSearch);
             }
-            else{
+            else {
                 const searchedData = feeData.filter((data) => data.studentName.toLowerCase().includes(searchTerm.toLowerCase()));
                 setFilteredData(searchedData);
             }
@@ -86,14 +87,14 @@ export default function FeeManagement() {
     }
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const {name, value} = e.target;
+        const { name, value } = e.target;
         setSearchTerm(value);
     }
 
     const handleCategoryClick = (category: string) => {
         setNoData(true);
         setCategory(category);
-        if(category === 'feeReport'){
+        if (category === 'feeReport') {
             setSubCategory('daily');
         }
     }
@@ -116,29 +117,29 @@ export default function FeeManagement() {
     };
 
     const handleReportFieldsChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const {name, value} = e.target;
-        if(name === 'date'){
+        const { name, value } = e.target;
+        if (name === 'date') {
             setDate(value);
         }
 
-        if(name === 'sessionId'){
+        if (name === 'sessionId') {
             setSessionId(value);
         }
 
-        if(name === 'month'){
+        if (name === 'month') {
             setMonth(value);
         }
 
-        if(name === 'sDate'){
+        if (name === 'sDate') {
             setStartDate(value);
         }
 
-        if(name === 'eDate'){
+        if (name === 'eDate') {
             setEndDate(value);
         }
     }
 
-    const getFeeData = async() => {
+    const getFeeData = async () => {
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/getStudentsFeeData.php`, {
                 method: 'POST',
@@ -178,21 +179,21 @@ export default function FeeManagement() {
             const fileName = subCategory === 'daily' ? 'getFeePaymentsByDate.php' : subCategory === 'monthly' ? 'getFeePaymentsByMonth.php' : 'getFeePaymentsByRange.php';
             const monthNumber = new Date(`${month} 1, 2000`).getMonth() + 1;
             let dataToSend = {}
-            
-            if(subCategory === 'daily'){
+
+            if (subCategory === 'daily') {
                 dataToSend = {
                     date: date
                 }
             }
 
-            if(subCategory === 'monthly'){
+            if (subCategory === 'monthly') {
                 dataToSend = {
                     sessionId: sessionId,
                     month: monthNumber
                 }
             }
 
-            if(subCategory === 'range'){
+            if (subCategory === 'range') {
                 dataToSend = {
                     startDate,
                     endDate
@@ -244,12 +245,12 @@ export default function FeeManagement() {
         if (category === 'feeReport') {
             getFeeReportData();
         }
-        else{
+        else {
             getFeeData();
         }
     }
 
-    const exportToExcel = async (data : FeeData[] | StudentPaymentReport[]) => {
+    const exportToExcel = async (data: FeeData[] | StudentPaymentReport[]) => {
         if (!data || data.length === 0) {
             toast.error("No data to export");
             return;
@@ -257,14 +258,14 @@ export default function FeeManagement() {
 
         try {
             const res = await fetch("/api/exportExcel", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ data }),
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ data }),
             });
 
             if (!res.ok) {
-            toast.error("Failed to download Excel");
-            return;
+                toast.error("Failed to download Excel");
+                return;
             }
 
             const blob = await res.blob();
@@ -274,10 +275,10 @@ export default function FeeManagement() {
 
             const start = category === 'feeReport' ? 'Fee Collection' : 'Fee Data';
             const middle = category === 'feeReport' ? subCategory : '';
-            const end = category === 'feeReport' ? subCategory === 'daily' ? date : subCategory === 'monthly' ? (sessionId + '_' + month) : (startDate + '_' + endDate) : (academicSelection.session + '_' + academicSelection.class + '_' + academicSelection.section); 
+            const end = category === 'feeReport' ? subCategory === 'daily' ? date : subCategory === 'monthly' ? (sessionId + '_' + month) : (startDate + '_' + endDate) : (academicSelection.session + '_' + academicSelection.class + '_' + academicSelection.section);
 
             let finalName = start + ' ' + middle + ' ' + end;
-            if(searchTerm != ''){
+            if (searchTerm != '') {
                 finalName += '_searchTerm_' + searchTerm;
             }
 
@@ -293,7 +294,7 @@ export default function FeeManagement() {
     const calCashAmount = () => {
         let sum = 0;
         feePaymentsData.forEach(data => {
-            if(data.paymentMode === 'Cash'){
+            if (data.paymentMode === 'Cash') {
                 sum += Number(data.amount);
             }
         })
@@ -304,7 +305,7 @@ export default function FeeManagement() {
     const calOnlineAmount = () => {
         let sum = 0;
         feePaymentsData.forEach(data => {
-            if(data.paymentMode === 'UPI' || data.paymentMode === 'Card'){
+            if (data.paymentMode === 'UPI' || data.paymentMode === 'Card') {
                 sum += Number(data.amount);
             }
         })
@@ -315,7 +316,7 @@ export default function FeeManagement() {
     const calChequeAmount = () => {
         let sum = 0;
         feePaymentsData.forEach(data => {
-            if(data.paymentMode === 'Cheque'){
+            if (data.paymentMode === 'Cheque') {
                 sum += Number(data.amount);
             }
         })
@@ -333,7 +334,7 @@ export default function FeeManagement() {
     }
 
     const months = Array.from({ length: 12 }, (_, i) =>
-      new Date(0, i).toLocaleString("default", { month: "long" })
+        new Date(0, i).toLocaleString("default", { month: "long" })
     );
 
     const isLoading = pageLoading || classesLoading || sectionsLoading || sessionsLoading;
@@ -353,66 +354,69 @@ export default function FeeManagement() {
             <Header title='Sapient Heights' info='Fees Management Portal for Sapient Heights' />
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <Button icon={<GraduationCap />} text="Fee Master" onClick={() => handleCategoryClick('feeMaster')} setGreen={category === 'feeMaster'} />
                     <Button icon={<Receipt />} text="Fee Paid" onClick={() => handleCategoryClick('feePaid')} setGreen={category === 'feePaid'} />
                     <Button icon={<FileChartColumnIncreasing />} text="Fee Collection Report" onClick={() => handleCategoryClick('feeReport')} setGreen={category === 'feeReport'} />
+                    <Button icon={<Signature />} text="Payment Approval" onClick={() => handleCategoryClick("approval")} setGreen={category === 'approval'} />
                 </div>
             </div>
 
             {category === 'feeReport' && (
                 <div className="max-w-4xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
                     <FormSection icon={<TrendingUpDown />} title="Select Payments Frequency" margin={false} >
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Button icon={<CalendarDays />} text="Daily" onClick={() => handleSubCategoryClick('daily')} setGreen={subCategory === 'daily'} />
-                        <Button icon={<CalendarSearch />} text="Monthly" onClick={() => handleSubCategoryClick('monthly')} setGreen={subCategory === 'monthly'} />
-                        <Button icon={<CalendarRange />} text="Range" onClick={() => handleSubCategoryClick('range')} setGreen={subCategory === 'range'} />
-                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <Button icon={<CalendarDays />} text="Daily" onClick={() => handleSubCategoryClick('daily')} setGreen={subCategory === 'daily'} />
+                            <Button icon={<CalendarSearch />} text="Monthly" onClick={() => handleSubCategoryClick('monthly')} setGreen={subCategory === 'monthly'} />
+                            <Button icon={<CalendarRange />} text="Range" onClick={() => handleSubCategoryClick('range')} setGreen={subCategory === 'range'} />
+                        </div>
                     </FormSection>
                 </div>
             )}
 
-            <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
-                <form onSubmit={handleSubmit}>
-                    <FormSection icon={<School size={18} />} title={category !== 'feeReport' ? "Academic Selections" : "Report Type Selections"} margin={false}>
-                        {category !== 'feeReport' && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <SelectField label="Session" name="session" value={academicSelection.session} onChange={handleChange} options={sessions} />
-                                <SelectField label="Class" name="class" value={academicSelection.class} onChange={handleChange} options={classes} />
-                                <SelectField label="Section" name="section" value={academicSelection.section} onChange={handleChange} options={sections} />
-                            </div>
-                        )}
+            {category !== 'approval' && (
+                <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
+                    <form onSubmit={handleSubmit}>
+                        <FormSection icon={<School size={18} />} title={category !== 'feeReport' ? "Academic Selections" : "Report Type Selections"} margin={false}>
+                            {category !== 'feeReport' && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <SelectField label="Session" name="session" value={academicSelection.session} onChange={handleChange} options={sessions} />
+                                    <SelectField label="Class" name="class" value={academicSelection.class} onChange={handleChange} options={classes} />
+                                    <SelectField label="Section" name="section" value={academicSelection.section} onChange={handleChange} options={sections} />
+                                </div>
+                            )}
 
-                        {category === 'feeReport' && (
-                            <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                {subCategory === 'daily' && (
-                                    <InputField label="Select Date" name="date" value={date} onChange={handleReportFieldsChange} type="date" />
-                                )}
-                                {subCategory === 'monthly' && (
-                                    <>
-                                    <SelectField label="Select Session" name="sessionId" value={sessionId} options={sessions} onChange={handleReportFieldsChange} />
-                                    <SelectField label="Select Month" name="month" value={month} options={months} onChange={handleReportFieldsChange} />
-                                    </>
-                                )}
-                                {subCategory === 'range' && (
-                                    <>
-                                    <InputField type="date" value={startDate} label="Enter Start Date" name="sDate" onChange={handleReportFieldsChange}/>
-                                    <InputField type="date" value={endDate} label="Enter End Date" name="eDate" onChange={handleReportFieldsChange}/>
-                                    </>
-                                )}
-                            </div>
-                            </>
-                        )}
-                        
-                        {category === 'feeReport' ? (
-                            <FormFooterActions primaryLabel={'Get Fee Report'} reset={reset} />
-                        ) : (
-                            <FormFooterActions primaryLabel={'Get Fee Data'} reset={reset} />
-                        )}
-                    </FormSection>
-                </form>
-            </div>
+                            {category === 'feeReport' && (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                        {subCategory === 'daily' && (
+                                            <InputField label="Select Date" name="date" value={date} onChange={handleReportFieldsChange} type="date" />
+                                        )}
+                                        {subCategory === 'monthly' && (
+                                            <>
+                                                <SelectField label="Select Session" name="sessionId" value={sessionId} options={sessions} onChange={handleReportFieldsChange} />
+                                                <SelectField label="Select Month" name="month" value={month} options={months} onChange={handleReportFieldsChange} />
+                                            </>
+                                        )}
+                                        {subCategory === 'range' && (
+                                            <>
+                                                <InputField type="date" value={startDate} label="Enter Start Date" name="sDate" onChange={handleReportFieldsChange} />
+                                                <InputField type="date" value={endDate} label="Enter End Date" name="eDate" onChange={handleReportFieldsChange} />
+                                            </>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+
+                            {category === 'feeReport' ? (
+                                <FormFooterActions primaryLabel={'Get Fee Report'} reset={reset} />
+                            ) : (
+                                <FormFooterActions primaryLabel={'Get Fee Data'} reset={reset} />
+                            )}
+                        </FormSection>
+                    </form>
+                </div>
+            )}
 
             {noData === false && category === 'feeReport' && (
                 <div className="max-w-5xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 mb-10 md:p-10">
@@ -444,35 +448,41 @@ export default function FeeManagement() {
                 </div>
             )}
 
-            <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10">
-                <FormSection icon={<Receipt size={18} />} title={category !== 'feeReport' ? "Session Fees" : "Fee Payments"} margin={false}>
-                    {noData ? (
-                        <NoDataSection />
-                    ) : (
-                        <>
-                        <div className="mb-8">
-                            <InputField label="Search by Name" name="search" value={searchTerm} onChange={handleSearchChange} />
-                        </div>
-                        {category === 'feeReport' ? (
-                            <>
-                            <ShowPaymentsReport feePaymentsData = {filteredFeePaymentsData} subCategory={subCategory} />
-                            <div className="mt-6">
-                                <Button text="Export to Excel" icon={<></>} onClick={() => exportToExcel(filteredFeePaymentsData)} setGreen />
-                            </div>
-                            </>
+            {category !== 'approval' && (
+                <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10">
+                    <FormSection icon={<Receipt size={18} />} title={category !== 'feeReport' ? "Session Fees" : "Fee Payments"} margin={false}>
+                        {noData ? (
+                            <NoDataSection />
                         ) : (
                             <>
-                            <FeeTable feeData={filteredData} category={category} setUpdateFee={setUpdateFee} setSelectedStd={setSelectedStd} getFeeData={getFeeData} />
+                                <div className="mb-8">
+                                    <InputField label="Search by Name" name="search" value={searchTerm} onChange={handleSearchChange} />
+                                </div>
+                                {category === 'feeReport' ? (
+                                    <>
+                                        <ShowPaymentsReport feePaymentsData={filteredFeePaymentsData} subCategory={subCategory} />
+                                        <div className="mt-6">
+                                            <Button text="Export to Excel" icon={<></>} onClick={() => exportToExcel(filteredFeePaymentsData)} setGreen />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <FeeTable feeData={filteredData} category={category} setUpdateFee={setUpdateFee} setSelectedStd={setSelectedStd} getFeeData={getFeeData} />
+                                    </>
+                                )}
                             </>
+
                         )}
-                        </>   
-                        
-                    )}
-                </FormSection>
-            </div>
+                    </FormSection>
+                </div>
+            )}
 
             {updateFee && (
                 <FeeUpdateDialog category={category} setUpdateFee={setUpdateFee} selectedStd={selectedStd} setSelectedStd={setSelectedStd} setPageLoading={setPageLoading} getFeeData={getFeeData} />
+            )}
+
+            {category === 'approval' && (
+                <PaymentApprovals />
             )}
 
             <Footer />

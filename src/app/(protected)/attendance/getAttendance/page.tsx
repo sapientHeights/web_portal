@@ -54,10 +54,11 @@ export default function GetAttendance() {
     const [filters, setFilters] = useState({
         selectedClass: "",
         selectedSection: "",
+        selectedDate: "",
         search: ""
     });
 
-    const { selectedClass, selectedSection, search } = filters;
+    const { selectedClass, selectedSection, selectedDate, search } = filters;
 
     const handleChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -104,7 +105,8 @@ export default function GetAttendance() {
             const data = await res.json();
 
             if (!data.error) {
-                setAttData(data.attData);
+                const sortedData = data.attData.sort((a: AttData, b: AttData) => a.studentName.localeCompare(b.studentName));
+                setAttData(sortedData);
             } else {
                 setNoData(true);
             }
@@ -194,6 +196,13 @@ export default function GetAttendance() {
         setStudentStats(finalStats);
     };
 
+    const getAttforDate = (sId: string, classId: string, section: string, date: string) => {
+        if (!sId || !classId || !section || !date) return null;
+
+        const record = attData.find((r) => r.sId === sId && r.classId === classId && r.section === section && r.classDate === date);
+        return record ? record.att : "-";
+    }
+
 
     useEffect(() => {
         if (attData.length > 0) calculateStats();
@@ -218,6 +227,7 @@ export default function GetAttendance() {
         setFilters({
             selectedClass: "",
             selectedSection: "",
+            selectedDate: "",
             search: ""
         });
     }
@@ -229,6 +239,69 @@ export default function GetAttendance() {
         }
 
         setIsLoading(true);
+
+        if (selectedDate !== "") {
+            const dataToExport = filteredStats.map((s) => ({
+                name: s.name,
+                class: s.class,
+                section: s.section,
+                attendance: getAttforDate(
+                    s.sId,
+                    s.class,
+                    s.section,
+                    selectedDate
+                ),
+            }));
+
+            console.log(dataToExport);
+            try {
+                const res = await fetch("/api/exportExcelAttByDate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ data: dataToExport }),
+                });
+
+                if (!res.ok) {
+                    toast.error("Failed to download Excel");
+                    return;
+                }
+
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+
+                let finalName = `Attendance Stats By Date ${sessionId}`;
+                if (filters.selectedClass != '') {
+                    finalName += `_${filters.selectedClass}`;
+                }
+
+                if (filters.selectedSection != '') {
+                    finalName += `_${filters.selectedSection}`;
+                }
+
+                if (filters.selectedDate != ''){
+                    finalName += `_${filters.selectedDate}`;
+                }
+
+                if (filters.search != '') {
+                    finalName += '_searchTerm_' + filters.search;
+                }
+
+                a.download = (finalName + '.xlsx');
+                a.click();
+                URL.revokeObjectURL(url);
+            } 
+            catch (err) {
+                console.error(err);
+                toast.error("An error occurred while exporting Excel");
+            }
+            finally {
+                setIsLoading(false);
+            }
+
+            return;
+        }
 
         try {
             const res = await fetch("/api/exportExcelAtt", {
@@ -248,11 +321,11 @@ export default function GetAttendance() {
             a.href = url;
 
             let finalName = `Attendance Stats ${sessionId}`;
-            if(filters.selectedClass != ''){
+            if (filters.selectedClass != '') {
                 finalName += `_${filters.selectedClass}`;
             }
 
-            if(filters.selectedSection != ''){
+            if (filters.selectedSection != '') {
                 finalName += `_${filters.selectedSection}`;
             }
 
@@ -263,11 +336,12 @@ export default function GetAttendance() {
             a.download = (finalName + '.xlsx');
             a.click();
             URL.revokeObjectURL(url);
-        } catch (err) {
+        } 
+        catch (err) {
             console.error(err);
             toast.error("An error occurred while exporting Excel");
         }
-        finally{
+        finally {
             setIsLoading(false);
         }
     }
@@ -304,6 +378,7 @@ export default function GetAttendance() {
                     <div className="grid md:grid-cols-3 gap-4">
                         <SelectField label="Class" name="selectedClass" value={selectedClass} onChange={handleChange} options={classes} />
                         <SelectField label="Section" name="selectedSection" value={selectedSection} onChange={handleChange} options={sections} disabled={!selectedClass} />
+                        <InputField label="Date" name="selectedDate" value={selectedDate} onChange={handleChange} type="date" disabled={!selectedSection} />
                         <InputField label="Search Student" name="search" value={search} onChange={handleChange} type="text" />
                     </div>
 
@@ -327,9 +402,15 @@ export default function GetAttendance() {
                                 </span>
                             )}
 
-                            {selectedClass !== '' && selectedSection !== '' && (
+                            {selectedClass !== '' && selectedSection !== '' && selectedDate === '' && (
                                 <span className="px-4 py-1.5 text-sm bg-yellow-100 text-yellow-700 rounded-full font-medium shadow-sm">
                                     Total Classes: {filteredStats[0].totalUniqueDates}
+                                </span>
+                            )}
+
+                            {selectedClass !== '' && selectedSection !== '' && selectedDate !== '' && (
+                                <span className="px-4 py-1.5 text-sm bg-red-100 text-red-700 rounded-full font-medium shadow-sm">
+                                    Date: {selectedDate}
                                 </span>
                             )}
                         </div>
@@ -342,13 +423,21 @@ export default function GetAttendance() {
                                 <tr className="text-left text-gray-700">
                                     <th className="p-3 border-b">S.No</th>
                                     <th className="p-3 border-b">Student</th>
-                                    {selectedClass === '' && <th className="p-3 border-b">Class</th>}
-                                    {selectedSection === '' && <th className="p-3 border-b">Section</th>}
-                                    {selectedSection === '' && <th className="p-3 border-b">Total Classes</th>}
-                                    <th className="p-3 border-b">Presents</th>
-                                    <th className="p-3 border-b">Absents</th>
-                                    <th className="p-3 border-b">Leaves</th>
-                                    <th className="p-3 border-b text-center">Attendance %</th>
+                                    {!selectedDate && (
+                                        <>
+                                            {selectedClass === '' && <th className="p-3 border-b">Class</th>}
+                                            {selectedSection === '' && <th className="p-3 border-b">Section</th>}
+                                            {selectedSection === '' && <th className="p-3 border-b">Total Classes</th>}
+                                            <th className="p-3 border-b">Presents</th>
+                                            <th className="p-3 border-b">Absents</th>
+                                            <th className="p-3 border-b">Leaves</th>
+                                            <th className="p-3 border-b text-center">Attendance %</th>
+                                        </>
+                                    )}
+
+                                    {selectedDate && (
+                                        <th className="p-3 border-b">Attendance</th>
+                                    )}
                                 </tr>
                             </thead>
 
@@ -357,13 +446,23 @@ export default function GetAttendance() {
                                     <tr key={idx} className="hover:bg-gray-50 border-b">
                                         <td className="p-3">{idx + 1}</td>
                                         <td className="p-3">{s.name}</td>
-                                        {selectedClass === '' && <td className="p-3">{s.class}</td>}
-                                        {selectedSection === '' && <td className="p-3">{s.section}</td>}
-                                        {selectedSection === '' && <td className="p-3">{s.totalUniqueDates}</td>}
-                                        <td className="p-3">{s.presents}</td>
-                                        <td className="p-3">{s.absents}</td>
-                                        <td className="p-3">{s.leaves}</td>
-                                        <td className="p-3 text-center font-semibold">{s.attendancePercentage}%</td>
+                                        {!selectedDate && (
+                                            <>
+                                                {selectedClass === '' && <td className="p-3">{s.class}</td>}
+                                                {selectedSection === '' && <td className="p-3">{s.section}</td>}
+                                                {selectedSection === '' && <td className="p-3">{s.totalUniqueDates}</td>}
+                                                <td className="p-3">{s.presents}</td>
+                                                <td className="p-3">{s.absents}</td>
+                                                <td className="p-3">{s.leaves}</td>
+                                                <td className="p-3 text-center font-semibold">{s.attendancePercentage}%</td>
+                                            </>
+                                        )}
+
+                                        {selectedDate && (
+                                            <td className="p-3 text-left font-semibold">
+                                                {getAttforDate(s.sId, selectedClass, selectedSection, selectedDate)}
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
 

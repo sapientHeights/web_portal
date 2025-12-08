@@ -1,4 +1,4 @@
-import { BadgeIndianRupee, Delete, Loader, SquarePen, X } from "lucide-react";
+import { BadgeIndianRupee, Delete, Download, Loader, SquarePen, X } from "lucide-react";
 import FormSection from "./FormSection";
 import Button from "./Button";
 import { SetStateAction, useEffect, useState } from "react";
@@ -15,6 +15,7 @@ type StudentPayment = {
     paymentDate: string;
     paymentMode: string;
     remark: string;
+    studentName: string;
 }
 
 type Props = {
@@ -46,7 +47,7 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
             if (!data.error) {
                 setPaymentsData(data.paymentsData);
             }
-            else{
+            else {
                 setPaymentsData(null);
             }
         }
@@ -60,10 +61,10 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
     }
 
     useEffect(() => {
-        if(paymentsData === null) fetchStdPayments();
+        if (paymentsData === null) fetchStdPayments();
     }, [])
 
-    const deletePaymentToast = (payment : StudentPayment) => {
+    const deletePaymentToast = (payment: StudentPayment) => {
         setSelectedPayment(payment);
         toast.custom((t) => (
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 px-6 py-4 w-[320px] text-center animate-slide-in">
@@ -93,7 +94,7 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
         ));
     }
 
-    const deletePayment = async (payment : StudentPayment) => {
+    const deletePayment = async (payment: StudentPayment) => {
         setLoading(true);
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/deleteStdPayment.php`, {
@@ -109,7 +110,7 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
             const data = await res.json();
             if (!data.error) {
                 toast.success("Payment Deleted");
-                
+
                 fetchStdPayments();
                 getFeeData();
             }
@@ -126,9 +127,80 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
         }
     }
 
-    const showUpdateDialog = (payment : StudentPayment) => {
+    const showUpdateDialog = (payment: StudentPayment) => {
         setSelectedPayment(payment);
         setShowPaymentUpdate(true);
+    }
+
+    const numberToWords = (num: number) : string => {
+        const a = [
+            "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+            "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+            "Seventeen", "Eighteen", "Nineteen"
+        ];
+
+        const b = [
+            "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"
+        ];
+
+        const inWords = (n: number) : string => {
+            if (n < 20) return a[n];
+            if (n < 100) return b[Math.floor(n / 10)] + (n % 10 ? " " + a[n % 10] : "");
+            if (n < 1000) return a[Math.floor(n / 100)] + " Hundred" + (n % 100 ? " " + inWords(n % 100) : "");
+            if (n < 100000) return inWords(Math.floor(n / 1000)) + " Thousand" + (n % 1000 ? " " + inWords(n % 1000) : "");
+            if (n < 10000000) return inWords(Math.floor(n / 100000)) + " Lakh" + (n % 100000 ? " " + inWords(n % 100000) : "");
+            return inWords(Math.floor(n / 10000000)) + " Crore" + (n % 10000000 ? " " + inWords(n % 10000000) : "");
+        }
+
+        return inWords(num) || "Zero";
+    }
+
+
+    const downloadReceipt = async (payment: StudentPayment) => {
+        setLoading(true);
+        const date = payment.paymentDate;
+        const amount = payment.amount;
+        const studentName = selectedStd?.studentName || payment.sId;
+        const amountInWords = numberToWords(Number(payment.amount));
+        const classId = payment.classId;
+        const paymentMethod = payment.paymentMode;
+        const paymentPurpose = '';
+
+        const data = {
+            date, amount, studentName, amountInWords, classId, paymentMethod, paymentPurpose
+        };
+
+        try {
+            const response = await fetch('/api/generateReceipt', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to generate PDF');
+            }
+
+            const blob = await response.blob();
+
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            const fileName = `${selectedStd?.studentName || payment.sId}_${payment.classId}_${payment.paymentDate}_${payment.amount}_receipt.pdf`;
+
+            link.download = fileName;
+            link.click();
+
+            toast.success("Receipt saved successfully");
+        }
+        catch (error) {
+            console.error("Error generating PDF:", error);
+            toast.error("Failed to generate receipt");
+        }
+        finally {
+            setLoading(false);
+        }
     }
 
     return (
@@ -151,6 +223,7 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
                                         <th className="px-6 py-4">Mode</th>
                                         <th className="px-1 py-4"></th>
                                         <th className="px-1 py-4"></th>
+                                        <th className="px-1 py-4"></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 text-center">
@@ -165,6 +238,7 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
                                             <td className="px-6 py-4">{data.amount}</td>
                                             <td className="px-6 py-4">{data.paymentDate}</td>
                                             <td className="px-6 py-4">{data.paymentMode}</td>
+                                            <td className="px-2 py-4 text-green-500 cursor-pointer" onClick={() => downloadReceipt(data)}>{<Download size={12} />}</td>
                                             <td className="px-2 py-4 text-blue-500 cursor-pointer" onClick={() => showUpdateDialog(data)}>{<SquarePen size={12} />}</td>
                                             <td className="px-2 py-4 text-red-500 cursor-pointer" onClick={() => deletePaymentToast(data)}>{<Delete size={12} />}</td>
                                         </tr>
@@ -180,7 +254,7 @@ export default function ShowPayments({ selectedStd, setShowPayments, getFeeData 
             </div>
 
             {showPaymentUpdate && (
-                <FeePaymentUpdateDialog selectedFeePayment={selectedPayment} setSelectedFeePayment={setSelectedPayment} setShowPaymentUpdate={setShowPaymentUpdate} setLoading={setLoading} stdFee = {selectedStd} fetchStdPayments={fetchStdPayments} getFeeData={getFeeData} />
+                <FeePaymentUpdateDialog selectedFeePayment={selectedPayment} setSelectedFeePayment={setSelectedPayment} setShowPaymentUpdate={setShowPaymentUpdate} setLoading={setLoading} stdFee={selectedStd} fetchStdPayments={fetchStdPayments} getFeeData={getFeeData} />
             )}
         </div>
     )

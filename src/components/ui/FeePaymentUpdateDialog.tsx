@@ -17,6 +17,7 @@ type StudentPayment = {
     paymentDate: string;
     paymentMode: string;
     remark: string;
+    studentName: string;
 }
 
 type Props = {

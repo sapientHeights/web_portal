@@ -7,6 +7,8 @@ import FullPageLoader from "@/components/ui/FullPageLoader";
 import Header from "@/components/ui/Header";
 import NoDataSection from "@/components/ui/NoDataSection";
 import SelectField from "@/components/ui/SelectField";
+import ShowObs from "@/components/ui/ShowObs";
+import ShowSchoolFeedbacks from "@/components/ui/ShowSchoolFeedbacks";
 import UserInfo from "@/components/ui/UserInfo";
 import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
@@ -14,7 +16,7 @@ import { useSections } from "@/hooks/useSections";
 import { useSessions } from "@/hooks/useSessions";
 import { StudentAllData, StudentData } from "@/types/student";
 import { TeacherAllData, TeacherData } from "@/types/teacher";
-import { Briefcase, Newspaper, StepBack, User } from "lucide-react";
+import { Briefcase, Glasses, Newspaper, NotepadText, StepBack, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -46,6 +48,8 @@ export default function Reports() {
     });
     const [reportType, setReportType] = useState("students");
     const [teachersData, setTeachersData] = useState<TeacherAllData[] | null>(null);
+    const [showObs, setShowObs] = useState(false);
+    const [showSchoolFeedbacks, setShowSchoolFeedbacks] = useState(false);
 
     const goBack = () => {
         setPageLoading(true);
@@ -54,7 +58,19 @@ export default function Reports() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
+        if(name === 'sessionId'){
+            setStdSesData(prev => ({...prev, ['studentClass']: ''}));
+        }
+
+        if(name === 'studentClass'){
+            setStdSesData(prev => ({...prev, ['section']: ''}));
+        }
+
         setStdSesData(prev => ({ ...prev, [name]: value }));
+        
+        setShowObs(false);
+        setShowSchoolFeedbacks(false);
+        setStudentsData([]);
     };
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -120,10 +136,26 @@ export default function Reports() {
         if (reportType != reportTypeValue) {
             setStdSesData({ sessionId: "", studentClass: "", section: "" });
             setStudentsData(null);
+            setShowObs(false);
+            setShowSchoolFeedbacks(false);
         }
         setReportType(reportTypeValue);
         if (reportTypeValue === "teachers") {
             getTeachersData();
+        }
+    }
+
+    const handleButtonClick = () => {
+        if(reportType === 'students'){
+            getStudentsData();
+        }
+
+        if(reportType === 'observations'){
+            setShowObs(true);
+        }
+
+        if(reportType === 'feedbacks'){
+            setShowSchoolFeedbacks(true);
         }
     }
 
@@ -144,28 +176,34 @@ export default function Reports() {
             <Header title='Sapient Heights' info='View Reports Data for Sapient Heights' />
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <Button text="Get Students Data" icon={<User />} onClick={() => changeReportType("students")} setGreen={reportType === "students"} />
                     <Button text="Get Teachers Data" icon={<Briefcase />} onClick={() => changeReportType("teachers")} setGreen={reportType === "teachers"} />
+                    <Button text="Student Observations" icon={<Glasses />} onClick={() => changeReportType("observations")} setGreen={reportType === "observations"} />
+                    <Button text="Feedbacks" icon={<NotepadText />} onClick={() => changeReportType("feedbacks")} setGreen={reportType === "feedbacks"} />
                 </div>
             </div>
 
-            {reportType === 'students' && (
+            {reportType !== 'teachers' && (
                 <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <SelectField label="Session" name="sessionId" value={stdSesData.sessionId} onChange={handleChange} options={sessions} required />
-                        <SelectField
-                            label="Class"
-                            name="studentClass"
-                            value={stdSesData.studentClass}
-                            onChange={handleChange}
-                            options={classes}
-                            required
-                        />
-                        <SelectField label="Section" name="section" value={stdSesData.section} onChange={handleChange} options={sections} required disabled={stdSesData.studentClass === ""} />
+                        {reportType !== 'feedbacks' && (
+                            <>
+                            <SelectField
+                                label="Class"
+                                name="studentClass"
+                                value={stdSesData.studentClass}
+                                onChange={handleChange}
+                                options={classes}
+                                required
+                            />
+                            <SelectField label="Section" name="section" value={stdSesData.section} onChange={handleChange} options={sections} required disabled={stdSesData.studentClass === ""} />
+                            </>
+                        )}
                     </div>
                     <div className="w-fit mx-auto mt-6">
-                        <Button onClick={getStudentsData} icon={<Newspaper />} text="Get Student Data" setGreen={true} />
+                        <Button onClick={handleButtonClick} icon={<Newspaper />} text={reportType === 'students' ? "Get Student Data" : reportType === 'observations' ? "Get Observations" : "Get Feedbacks"} setGreen={true} />
                     </div>
                 </div>
             )}
@@ -201,6 +239,14 @@ export default function Reports() {
 
             {dialog.openDialog && dialog.selectedData && (
                 <DataDialog dialog={dialog} setDialog={setDialog} reportType={reportType} getData = {reportType === "teachers" ? getTeachersData : getStudentsData} />
+            )}
+
+            {reportType === 'observations' && showObs && (
+                <ShowObs sessionId={stdSesData.sessionId} classId={stdSesData.studentClass} section={stdSesData.section} />
+            )}
+
+            {reportType === 'feedbacks' && showSchoolFeedbacks && (
+                <ShowSchoolFeedbacks sessionId={stdSesData.sessionId} />
             )}
 
         </div>
