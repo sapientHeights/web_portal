@@ -1,24 +1,30 @@
 import { NextRequest } from "next/server";
 
-// Use full puppeteer locally, puppeteer-core in production
-const isVercel = !!process.env.VERCEL;
-const puppeteer = isVercel ? require("puppeteer-core") : require("puppeteer");
-const chromium = isVercel ? require("@sparticuz/chromium") : null;
-
 export async function POST(request: NextRequest) {
   try {
-    const { date, amount, studentName, amountInWords, classId, paymentMethod, paymentPurpose } = await request.json();
+    const { date, amount, studentName, amountInWords, classId, paymentMethod, paymentPurpose } =
+      await request.json();
     const purpose = paymentPurpose || "Tuition Fee";
 
-    // Launch Puppeteer
-    const browser = await (isVercel
-      ? puppeteer.launch({
-          args: chromium.args,
-          executablePath: await chromium.executablePath(),
-          headless: true,
-          defaultViewport: { width: 1200, height: 800 },
-        })
-      : puppeteer.launch({ headless: true, defaultViewport: { width: 1200, height: 800 } })
+    const isVercel = !!process.env.VERCEL;
+
+    // Dynamic imports for ESM compatibility
+    const puppeteer = isVercel
+      ? (await import("puppeteer-core")).default
+      : (await import("puppeteer")).default;
+
+    const chromium = isVercel ? (await import("@sparticuz/chromium")).default : null;
+
+    // Launch Puppeteer browser
+    const browser = await puppeteer.launch(
+      isVercel
+        ? {
+            args: chromium!.args,
+            executablePath: await chromium!.executablePath(),
+            headless: true,
+            defaultViewport: { width: 1200, height: 800 },
+          }
+        : { headless: true, defaultViewport: { width: 1200, height: 800 } }
     );
 
     const page = await browser.newPage();
@@ -65,7 +71,7 @@ export async function POST(request: NextRequest) {
             </div>
 
             <div class="content">
-              <p>Received with thank from <span class="dynamic">${studentName}</span> in class <span class="dynamic">${classId}</span> of Rupees <span class="dynamic">${amountInWords} rupees only</span> by <span class="dynamic">${paymentMethod}</span> towards <span class="dynamic">${purpose}</span> of the academic year.</p>
+              <p>Received with thanks from <span class="dynamic">${studentName}</span> in class <span class="dynamic">${classId}</span> of Rupees <span class="dynamic">${amountInWords} rupees only</span> by <span class="dynamic">${paymentMethod}</span> towards <span class="dynamic">${purpose}</span> of the academic year.</p>
             </div>
 
             <div class="footer">
@@ -97,7 +103,7 @@ export async function POST(request: NextRequest) {
             </div>
 
             <div class="content">
-              <p>Received with thank from <span class="dynamic">${studentName}</span> in class <span class="dynamic">${classId}</span> of Rupees <span class="dynamic">${amountInWords} rupees only</span> by <span class="dynamic">${paymentMethod}</span> towards <span class="dynamic">${purpose}</span> of the academic year.</p>
+              <p>Received with thanks from <span class="dynamic">${studentName}</span> in class <span class="dynamic">${classId}</span> of Rupees <span class="dynamic">${amountInWords} rupees only</span> by <span class="dynamic">${paymentMethod}</span> towards <span class="dynamic">${purpose}</span> of the academic year.</p>
             </div>
 
             <div class="footer">
