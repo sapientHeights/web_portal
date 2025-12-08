@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
                 <!-- First Receipt (Top Half) -->
                 <div class="receipt-box">
                     <div class="header">
-                        <img src="http://localhost:3000/sapient-logo.png" class="logo" alt="Logo">
+                        <img src="/sapient-logo.png" class="logo" alt="Logo">
                         <div class="text">
                             <p class="title">Sapient Height International School</p>
                             <p>Address: Near SBI Chowk, MR-4 Road, Vijay Nagar, Jabalpur</p>
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
                 <!-- Second Receipt (Bottom Half) -->
                 <div class="receipt-box">
                     <div class="header">
-                        <img src="http://localhost:3000/sapient-logo.png" class="logo" alt="Logo">
+                        <img src="/sapient-logo.png" class="logo" alt="Logo">
                         <div class="text">
                             <p class="title">Sapient Height International School</p>
                             <p>Address: Near SBI Chowk, MR-4 Road, Vijay Nagar, Jabalpur</p>
