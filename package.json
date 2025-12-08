@@ -9,11 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^143.0.0",
     "exceljs": "^4.4.0",
     "formidable": "^3.5.4",
     "lucide-react": "^0.536.0",
     "next": "^15.4.8",
     "puppeteer": "^24.32.1",
+    "puppeteer-core": "^24.32.1",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-hot-toast": "^2.6.0"
