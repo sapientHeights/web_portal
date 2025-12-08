@@ -3,7 +3,7 @@ import puppeteer from "puppeteer";
 
 export async function POST(request: NextRequest) {
     const { date, amount, studentName, amountInWords, classId, paymentMethod, paymentPurpose } = await request.json();
-    const purpose = paymentPurpose || 'Sapient Heights';
+    const purpose = paymentPurpose || 'Tuition Fee';
 
     const browser = await puppeteer.launch({
         headless: true,
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
                 <!-- First Receipt (Top Half) -->
                 <div class="receipt-box">
                     <div class="header">
-                        <img src="/sapient-logo.png" class="logo" alt="Logo">
+                        <img src="https://sapient-portal.vercel.app/sapient-logo.png" class="logo" alt="Logo">
                         <div class="text">
                             <p class="title">Sapient Height International School</p>
                             <p>Address: Near SBI Chowk, MR-4 Road, Vijay Nagar, Jabalpur</p>
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
                     </div>
 
                     <div class="content">
-                        <p>Received with thank from <span class="dynamic">${studentName}</span> in class <span class="dynamic">${classId}</span> of Rupees <span class="dynamic">${amountInWords} rupees only</span> by <span class="dynamic">${paymentMethod}</span> towards <span class="dynamic">${purpose}</span>.</p>
+                        <p>Received with thank from <span class="dynamic">${studentName}</span> in class <span class="dynamic">${classId}</span> of Rupees <span class="dynamic">${amountInWords} rupees only</span> by <span class="dynamic">${paymentMethod}</span> towards <span class="dynamic">${purpose}</span> of the academic year.</p>
                     </div>
 
                     <div class="footer">
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
                 <!-- Second Receipt (Bottom Half) -->
                 <div class="receipt-box">
                     <div class="header">
-                        <img src="/sapient-logo.png" class="logo" alt="Logo">
+                        <img src="https://sapient-portal.vercel.app/sapient-logo.png" class="logo" alt="Logo">
                         <div class="text">
                             <p class="title">Sapient Height International School</p>
                             <p>Address: Near SBI Chowk, MR-4 Road, Vijay Nagar, Jabalpur</p>
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
                     </div>
 
                     <div class="content">
-                        <p>Received with thank from <span class="dynamic">${studentName}</span> in class <span class="dynamic">${classId}</span> of Rupees <span class="dynamic">${amountInWords} rupees only</span> by <span class="dynamic">${paymentMethod}</span> towards <span class="dynamic">${purpose}</span>.</p>
+                        <p>Received with thank from <span class="dynamic">${studentName}</span> in class <span class="dynamic">${classId}</span> of Rupees <span class="dynamic">${amountInWords} rupees only</span> by <span class="dynamic">${paymentMethod}</span> towards <span class="dynamic">${purpose}</span> of the academic year.</p>
                     </div>
 
                     <div class="footer">
@@ -220,7 +220,8 @@ export async function POST(request: NextRequest) {
     await browser.close();
 
     // Return the generated PDF in the response
-    return new Response(pdfBuffer, {
+    const arrayBuffer = new Uint8Array(pdfBuffer).buffer;
+    return new Response(arrayBuffer, {
         headers: {
             "Content-Type": "application/pdf",
             "Content-Disposition": 'attachment; filename="dynamic_school_pdf.pdf"',
