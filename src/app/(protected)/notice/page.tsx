@@ -14,7 +14,7 @@ import { useUser } from "@/context/UserContext";
 import { useSessions } from "@/hooks/useSessions";
 import { Book, Newspaper, Pencil, StepBack } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 type NoticeData = {
@@ -32,7 +32,7 @@ export default function Notice() {
     const [category, setCategory] = useState('add');
     const [noticesData, setNoticesData] = useState<NoticeData[]>([]);
 
-    const { sessions, isLoading: sessionsLoading } = useSessions();
+    const { sessions, isLoading: sessionsLoading, activeSession } = useSessions();
 
     const initialSelectionData = {
         sessionId: "", date: "", title: "", subject: "", message: ""
@@ -40,6 +40,15 @@ export default function Notice() {
 
     const [selectionData, setSelectionData] = useState(initialSelectionData);
     const [showNotices, setShowNotices] = useState(false);
+
+    useEffect(() => {
+        if(activeSession){
+            setSelectionData(prev => ({
+                ...prev,
+                sessionId: activeSession
+            }))
+        }
+    }, [activeSession, category])
 
     const goBack = () => {
         setPageLoading(true);

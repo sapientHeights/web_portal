@@ -58,7 +58,8 @@ export const fetchSessions = async () => {
         const data = await res.json();
         if (data.success && data.sessionsData) {
             const sessions = (data.sessionsData.map((item: { sessionId: string }) => item.sessionId));
-            return { success: true, sessions };
+            const activeSession = data.sessionsData.filter((session: {sessionId: string, isActive: number}) => session.isActive === 1)[0].sessionId;
+            return { success: true, sessions, activeSession };
         }
         else {
             return { success: false };

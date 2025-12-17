@@ -5,6 +5,7 @@ export async function POST(request: NextRequest) {
     const { date, amount, studentName, amountInWords, classId, paymentMethod, paymentPurpose } =
       await request.json();
     const purpose = paymentPurpose || "Tuition Fee";
+    const formattedDate = new Date(date).toLocaleDateString("en-GB");
 
     const isVercel = !!process.env.VERCEL;
 
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
 
     const page = await browser.newPage();
 
+    // Full HTML template
     const html = `
     <html>
       <head>
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
 
             <div class="middle">
               <p class="text">Receipt</p>
-              <p>Date: <span class="dynamic">${date}</span></p>
+              <p>Date: <span class="dynamic">${formattedDate}</span></p>
             </div>
 
             <div class="content">
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
 
             <div class="middle">
               <p class="text">Receipt</p>
-              <p>Date: <span class="dynamic">${date}</span></p>
+              <p>Date: <span class="dynamic">${formattedDate}</span></p>
             </div>
 
             <div class="content">

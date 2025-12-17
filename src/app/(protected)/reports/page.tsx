@@ -18,13 +18,14 @@ import { StudentAllData, StudentData } from "@/types/student";
 import { TeacherAllData, TeacherData } from "@/types/teacher";
 import { Briefcase, Glasses, Newspaper, NotepadText, StepBack, User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function Reports() {
     const router = useRouter();
     const { user } = useUser();
     const [pageLoading, setPageLoading] = useState(false);
+    const { sessions, isLoading: sessionsLoading, activeSession } = useSessions();
 
     const [stdSesData, setStdSesData] = useState({
         sessionId: "", studentClass: "", section: ""
@@ -32,7 +33,6 @@ export default function Reports() {
 
     const { classes, isLoading: classesLoading } = useClasses();
     const { sections, isLoading: sectionsLoading } = useSections(stdSesData.studentClass);
-    const { sessions, isLoading: sessionsLoading } = useSessions();
 
     const [studentsData, setStudentsData] = useState<StudentAllData[] | null>(null);
     const [dialog, setDialog] = useState<{
@@ -51,6 +51,15 @@ export default function Reports() {
     const [showObs, setShowObs] = useState(false);
     const [showSchoolFeedbacks, setShowSchoolFeedbacks] = useState(false);
 
+    useEffect(() => {
+        if (activeSession && reportType !== 'teachers') {
+            setStdSesData(prev => ({
+                ...prev,
+                sessionId: activeSession
+            }));
+        }
+    }, [activeSession, reportType]);
+
     const goBack = () => {
         setPageLoading(true);
         router.back();
@@ -58,16 +67,16 @@ export default function Reports() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        if(name === 'sessionId'){
-            setStdSesData(prev => ({...prev, ['studentClass']: ''}));
+        if (name === 'sessionId') {
+            setStdSesData(prev => ({ ...prev, ['studentClass']: '' }));
         }
 
-        if(name === 'studentClass'){
-            setStdSesData(prev => ({...prev, ['section']: ''}));
+        if (name === 'studentClass') {
+            setStdSesData(prev => ({ ...prev, ['section']: '' }));
         }
 
         setStdSesData(prev => ({ ...prev, [name]: value }));
-        
+
         setShowObs(false);
         setShowSchoolFeedbacks(false);
         setStudentsData([]);
@@ -146,15 +155,15 @@ export default function Reports() {
     }
 
     const handleButtonClick = () => {
-        if(reportType === 'students'){
+        if (reportType === 'students') {
             getStudentsData();
         }
 
-        if(reportType === 'observations'){
+        if (reportType === 'observations') {
             setShowObs(true);
         }
 
-        if(reportType === 'feedbacks'){
+        if (reportType === 'feedbacks') {
             setShowSchoolFeedbacks(true);
         }
     }
@@ -190,15 +199,15 @@ export default function Reports() {
                         <SelectField label="Session" name="sessionId" value={stdSesData.sessionId} onChange={handleChange} options={sessions} required />
                         {reportType !== 'feedbacks' && (
                             <>
-                            <SelectField
-                                label="Class"
-                                name="studentClass"
-                                value={stdSesData.studentClass}
-                                onChange={handleChange}
-                                options={classes}
-                                required
-                            />
-                            <SelectField label="Section" name="section" value={stdSesData.section} onChange={handleChange} options={sections} required disabled={stdSesData.studentClass === ""} />
+                                <SelectField
+                                    label="Class"
+                                    name="studentClass"
+                                    value={stdSesData.studentClass}
+                                    onChange={handleChange}
+                                    options={classes}
+                                    required
+                                />
+                                <SelectField label="Section" name="section" value={stdSesData.section} onChange={handleChange} options={sections} required disabled={stdSesData.studentClass === ""} />
                             </>
                         )}
                     </div>
@@ -238,7 +247,7 @@ export default function Reports() {
 
 
             {dialog.openDialog && dialog.selectedData && (
-                <DataDialog dialog={dialog} setDialog={setDialog} reportType={reportType} getData = {reportType === "teachers" ? getTeachersData : getStudentsData} />
+                <DataDialog dialog={dialog} setDialog={setDialog} reportType={reportType} getData={reportType === "teachers" ? getTeachersData : getStudentsData} />
             )}
 
             {reportType === 'observations' && showObs && (

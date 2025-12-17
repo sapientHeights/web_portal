@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import FormSection from "./FormSection";
 import { Glasses, Loader } from "lucide-react";
 import InputField from "./InputField";
+import Button from "./Button";
 
 type Props = {
     sessionId: string;
@@ -79,6 +80,55 @@ export default function ShowObs({ sessionId, classId, section }: Props) {
         setSearchTerm(value);
     }
 
+    const exportToExcel = async (data: ObsData[]) => {
+        if (!data || data.length === 0) {
+            toast.error("No data to export");
+            return;
+        }
+
+        const columns = [
+            { header: "Session ID", key: "sessionId"},
+            { header: "Class ID", key: "classId"},
+            { header: "Section", key: "section"},
+            { header: "Student ID", key: "sId"},
+            { header: "Student Name", key: "studentName"},
+            { header: "Teacher ID", key: "tId"},
+            { header: "Teacher Name", key: "teacherName"},
+            { header: "Date", key: "date"},
+            { header: "Observation", key: "observation"},
+        ]
+
+        try {
+            const res = await fetch("/api/genricExcelExport", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ data, columns }),
+            });
+
+            if (!res.ok) {
+                toast.error("Failed to download Excel");
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+
+            let finalName = `Students Observation ${sessionId}_${classId}_${section}`;
+            if (searchTerm != '') {
+                finalName += '_searchTerm_' + searchTerm;
+            }
+
+            a.download = (finalName + '.xlsx');
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error(err);
+            toast.error("An error occurred while exporting Excel");
+        }
+    }
+
     return (
         <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
             <FormSection title="Student Observations" icon={<Glasses />} margin={false} >
@@ -89,6 +139,7 @@ export default function ShowObs({ sessionId, classId, section }: Props) {
                     </div>
                 )}
                 {!loading && (
+                    <>
                     <div className="w-full max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg shadow-sm border border-gray-200 bg-white mt-6">
                         <table className="min-w-[600px] w-full text-sm text-left text-gray-700">
                             <thead className="bg-gray-100 sticky top-0 z-10 text-xs uppercase text-gray-600 tracking-wider text-center">
@@ -118,6 +169,11 @@ export default function ShowObs({ sessionId, classId, section }: Props) {
                             </tbody>
                         </table>
                     </div>
+
+                    <div className="mt-6">
+                        <Button text="Export to Excel" icon={<></>} onClick={() => exportToExcel(filteredObsData)} setGreen />
+                    </div>
+                    </>
                 )}
             </FormSection >
         </div>

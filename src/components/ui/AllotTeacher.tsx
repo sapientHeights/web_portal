@@ -6,7 +6,7 @@ import SelectField from "./SelectField";
 import { useClasses } from "@/hooks/useClasses";
 import { useSections } from "@/hooks/useSections";
 import { useSessions } from "@/hooks/useSessions";
-import { SetStateAction, useState } from "react";
+import { SetStateAction, useEffect, useState } from "react";
 import { TeacherAllData } from "@/types/teacher";
 import { useSubjects } from "@/hooks/useSubjects";
 import toast from "react-hot-toast";
@@ -34,8 +34,17 @@ export default function AllotTeacher({ setShowDialog, selectedTeacher, setLoadin
 
     const { classes, isLoading: classesLoading } = useClasses();
     const { sections, isLoading: sectionsLoading } = useSections(classTeacherData.classId);
-    const { sessions, isLoading: sessionsLoading } = useSessions();
+    const { sessions, isLoading: sessionsLoading, activeSession } = useSessions();
     const { subjects, isLoading: subjectsLoading } = useSubjects(classTeacherData.classId);
+
+    useEffect(() => {
+        if(activeSession){
+            setClassTeacherData(prev => ({
+                ...prev,
+                sessionId: activeSession
+            }))
+        }
+    }, [activeSession])
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;

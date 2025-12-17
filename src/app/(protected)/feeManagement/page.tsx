@@ -36,7 +36,7 @@ export default function FeeManagement() {
 
     const { classes, isLoading: classesLoading } = useClasses();
     const { sections, isLoading: sectionsLoading } = useSections(academicSelection.class);
-    const { sessions, isLoading: sessionsLoading } = useSessions();
+    const { sessions, isLoading: sessionsLoading, activeSession } = useSessions();
 
     const [category, setCategory] = useState('feeMaster');
     const [subCategory, setSubCategory] = useState('');
@@ -56,6 +56,19 @@ export default function FeeManagement() {
     const [month, setMonth] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+
+    useEffect(() => {
+        if (activeSession && category !== 'approval') {
+            setAcademicSelection(prev => ({
+                ...prev,
+                session: activeSession
+            }));
+
+            if(category === 'feeReport' && subCategory === 'monthly'){
+                setSessionId(activeSession);
+            }
+        }
+    }, [activeSession, category, subCategory]);
 
     useEffect(() => {
         if (searchTerm === '') {

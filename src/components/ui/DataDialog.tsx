@@ -84,7 +84,7 @@ export default function DataDialog({ dialog, setDialog, reportType, getData }: P
                     scale-100 opacity-100 translate-y-0
                 `}
             >
-                <div className={`flex justify-between items-center ${dialog.detailsTab ? '' : 'gap-12'}`}>
+                <div className={`flex justify-between items-center ${dialog.detailsTab ? '' : 'gap-0 sm:gap-12'} flex-col sm:flex-row`}>
                     <div className={`flex justify-start items-center ${dialog.detailsTab ? 'gap-10' : 'gap-5'} p-4`}>
                         <p
                             onClick={() => setDialog(prev => ({ ...prev, detailsTab: true }))}

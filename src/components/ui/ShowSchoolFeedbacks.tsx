@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import FormSection from "./FormSection";
 import { Glasses, Loader, NotepadText } from "lucide-react";
 import InputField from "./InputField";
+import Button from "./Button";
 
 type Props = {
     sessionId: string;
@@ -40,7 +41,7 @@ export default function ShowSchoolFeedbacks({ sessionId }: Props) {
                 setNoData(true);
             }
             else {
-                const sortedData = data.feedbacksData.sort((a:FeedbackData, b:FeedbackData) => a.studentName.localeCompare(b.studentName));
+                const sortedData = data.feedbacksData.sort((a: FeedbackData, b: FeedbackData) => a.studentName.localeCompare(b.studentName));
                 setFeedbacksData(sortedData);
                 setFilteredFeedbacksData(sortedData);
             }
@@ -59,7 +60,7 @@ export default function ShowSchoolFeedbacks({ sessionId }: Props) {
     }, [])
 
     useEffect(() => {
-        if(searchTerm === ''){
+        if (searchTerm === '') {
             setFilteredFeedbacksData(feedbacksData);
             return;
         }
@@ -70,20 +71,67 @@ export default function ShowSchoolFeedbacks({ sessionId }: Props) {
     }, [searchTerm])
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const {value} = e.target;
+        const { value } = e.target;
         setSearchTerm(value);
+    }
+
+    const exportToExcel = async (data: FeedbackData[]) => {
+        if (!data || data.length === 0) {
+            toast.error("No data to export");
+            return;
+        }
+
+        const columns = [
+            { header: "Session ID", key: "sessionId"},
+            { header: "Student ID", key: "sId"},
+            { header: "Student Name", key: "studentName"},
+            { header: "Date", key: "date"},
+            { header: "Category", key: "category"},
+            { header: "Details", key: "details"},
+        ]
+
+        try {
+            const res = await fetch("/api/genricExcelExport", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ data, columns }),
+            });
+
+            if (!res.ok) {
+                toast.error("Failed to download Excel");
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+
+            let finalName = `School Feedbacks ${sessionId}`;
+            if (searchTerm != '') {
+                finalName += '_searchTerm_' + searchTerm;
+            }
+
+            a.download = (finalName + '.xlsx');
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error(err);
+            toast.error("An error occurred while exporting Excel");
+        }
     }
 
     return (
         <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
             <FormSection title="School Feedbacks" icon={<NotepadText />} margin={false} >
-                <InputField label="Search by Student Name" name="search" value={searchTerm} onChange={handleSearchChange} disabled={noData}/>            
+                <InputField label="Search by Student Name" name="search" value={searchTerm} onChange={handleSearchChange} disabled={noData} />
                 {loading && (
                     <div className="flex items-center justify-center">
                         <Loader className="animate-spin text-black text-9xl" />
                     </div>
                 )}
                 {!loading && (
+                    <>
                     <div className="w-full max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg shadow-sm border border-gray-200 bg-white mt-6">
                         <table className="min-w-[600px] w-full text-sm text-left text-gray-700">
                             <thead className="bg-gray-100 sticky top-0 z-10 text-xs uppercase text-gray-600 tracking-wider text-center">
@@ -113,6 +161,11 @@ export default function ShowSchoolFeedbacks({ sessionId }: Props) {
                             </tbody>
                         </table>
                     </div>
+
+                    <div className="mt-6">
+                        <Button text="Export to Excel" icon={<></>} onClick={() => exportToExcel(filteredFeedbacksData)} setGreen />
+                    </div>
+                    </>
                 )}
             </FormSection >
         </div>

@@ -6,7 +6,7 @@ import SelectField from "@/components/ui/SelectField";
 import NoDataSection from "@/components/ui/NoDataSection";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { useClasses } from "@/hooks/useClasses";
@@ -14,8 +14,10 @@ import { useSections } from "@/hooks/useSections";
 import Button from "@/components/ui/Button";
 import Header from "@/components/ui/Header";
 import UserInfo from "@/components/ui/UserInfo";
-import { FileDown, RouteOff, StepBack } from "lucide-react";
+import { FileDown, RouteOff, School, StepBack } from "lucide-react";
 import { useUser } from "@/context/UserContext";
+import FormSection from "@/components/ui/FormSection";
+import FormFooterActions from "@/components/ui/FormFooterActions";
 
 type AttData = {
     sId: string;
@@ -44,7 +46,7 @@ type AttStatsData = {
 
 export default function GetAttendance() {
     const router = useRouter();
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const sessionId = typeof window !== "undefined" ? sessionStorage.getItem("sessionId") : null;
     const { user } = useUser();
 
@@ -52,13 +54,16 @@ export default function GetAttendance() {
     const [noData, setNoData] = useState(false);
 
     const [filters, setFilters] = useState({
+        selectedMonth: "",
         selectedClass: "",
         selectedSection: "",
         selectedDate: "",
-        search: ""
+        selectedStartRange: "",
+        selectedEndRange: "",
+        search: "",
     });
 
-    const { selectedClass, selectedSection, selectedDate, search } = filters;
+    const { selectedMonth, selectedClass, selectedSection, selectedDate, selectedStartRange, selectedEndRange, search } = filters;
 
     const handleChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -81,24 +86,28 @@ export default function GetAttendance() {
         total: 0
     });
 
-    const todayDate = new Date().toISOString().split('T')[0];
+    const todayDate = new Date().toLocaleDateString("en-CA");
 
     const [studentStats, setStudentStats] = useState<AttStatsData[]>([]);
+    const [filterCategory, setFilterCategory] = useState('month');
 
-    const fetchData = async () => {
-        if (!sessionId) {
-            toast.error("Some error occurred");
-            router.push('/dashboard');
+    const fetchDataByClass = async (e: FormEvent) => {
+        e.preventDefault();
+
+        if (!filters.selectedClass || !filters.selectedSection) {
+            toast.error("Please fill all the required fields");
             return;
         }
 
+        setIsLoading(true);
+
         try {
             const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}/getAttDataBySess.php`,
+                `${process.env.NEXT_PUBLIC_BACKEND_URL}/getAttDataByClass.php`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId }),
+                    body: JSON.stringify({ sessionId, classId: filters.selectedClass, section: filters.selectedSection }),
                 }
             );
 
@@ -107,6 +116,7 @@ export default function GetAttendance() {
             if (!data.error) {
                 const sortedData = data.attData.sort((a: AttData, b: AttData) => a.studentName.localeCompare(b.studentName));
                 setAttData(sortedData);
+                calTodayStatsData(sortedData);
             } else {
                 setNoData(true);
             }
@@ -118,29 +128,40 @@ export default function GetAttendance() {
         finally {
             setIsLoading(false);
         }
-    };
 
-    useEffect(() => { fetchData(); }, []);
 
-    useEffect(() => {
-        const today = attData.filter(d => d.classDate === todayDate);
+    }
 
-        let presents = 0, absents = 0, leaves = 0;
-        today.forEach(d => {
-            if (d.att === 'P') presents++;
-            else if (d.att === 'A') absents++;
-            else if (d.att === 'L') leaves++;
-        });
+    const calTodayStatsData = (data: AttData[]) => {
+        const today = data.filter(d => d.classDate === todayDate);
+
+        let totalStudents = 0, presents = 0, absents = 0, leaves = 0;
+        const set = new Set<string>();
+
+        data.forEach(d => {
+            set.add(d.sId);
+        })
+
+        totalStudents = set.size;
+
+        set.forEach(s => {
+            const stdData = today.find(d => d.sId == s);
+            if (stdData) {
+                if (stdData.att === 'P') presents++;
+                else if (stdData.att === 'A') absents++;
+                else if (stdData.att === 'L') leaves++;
+            }
+        })
 
         setTodayStats({
             presents,
             absents,
             leaves,
-            total: today.length
-        });
-    }, [attData]);
+            total: totalStudents
+        })
+    }
 
-    const calculateStats = () => {
+    const calculateStats = (data: AttData[] = attData) => {
         const stats: Record<string, {
             sId: string;
             name: string;
@@ -154,7 +175,7 @@ export default function GetAttendance() {
             attendancePercentage: number;
         }> = {};
 
-        attData.forEach(d => {
+        data.forEach(d => {
             if (!stats[d.sId]) {
                 stats[d.sId] = {
                     sId: d.sId,
@@ -178,7 +199,7 @@ export default function GetAttendance() {
         });
 
         const finalStats = Object.values(stats).map(s => {
-            const classSectionRecords = attData.filter(
+            const classSectionRecords = data.filter(
                 x => x.classId === s.class && x.section === s.section
             );
 
@@ -203,6 +224,74 @@ export default function GetAttendance() {
         return record ? record.att : "-";
     }
 
+    useEffect(() => {
+        const filterByMonth = () => {
+            if (selectedMonth === '') {
+                calculateStats();
+                return;
+            }
+
+            const year = selectedMonth.split(' ')[1];
+            const month = selectedMonth.split(' ')[0];
+
+            const MONTHS = [
+                'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+                'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'
+            ];
+
+            const monthNum = MONTHS.indexOf(month);
+
+            const records = attData.filter(data => {
+                const date = new Date(data.classDate);
+                return (
+                    date.getMonth() === monthNum && date.getFullYear().toString() === year
+                )
+            })
+
+            calculateStats(records);
+        }
+
+        filterByMonth();
+    }, [selectedMonth])
+
+    const monthOptions = useMemo(() => {
+        setIsLoading(true);
+        const map = new Map<number, Set<number>>();
+
+        attData.forEach(d => {
+            const date = new Date(d.classDate);
+            const key = date.getFullYear();
+            const value = date.getMonth();
+            const s = map.get(key);
+            if (s) {
+                s.add(value);
+            }
+            else {
+                const set = new Set<number>();
+                set.add(value);
+                map.set(key, set);
+            }
+        });
+
+        const options: string[] = [];
+        map.forEach((set, key) => {
+            const values = Array.from(set).sort((a, b) => a - b);
+
+            const MONTHS = [
+                'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+                'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'
+            ];
+
+            const getMonth = (month: number) => MONTHS[month];
+
+            values.forEach(val => {
+                options.push(`${getMonth(val)} ${key}`);
+            })
+        });
+
+        setIsLoading(false);
+        return options;
+    }, [attData]);
 
     useEffect(() => {
         if (attData.length > 0) calculateStats();
@@ -211,25 +300,74 @@ export default function GetAttendance() {
     const filteredStats = useMemo(() => {
         return studentStats.filter(s => {
             return (
-                (!selectedClass || s.class === selectedClass) &&
-                (!selectedSection || s.section === selectedSection) &&
                 s.name.toLowerCase().includes(search.toLowerCase())
             );
         });
-    }, [studentStats, selectedClass, selectedSection, search]);
+    }, [studentStats, search]);
+
+    useEffect(() => {
+        const filterByRange = () => {
+            if(selectedStartRange === "" && selectedEndRange === ""){
+                calculateStats();
+                return;
+            }
+
+            if((selectedStartRange !== "" && selectedEndRange !== "") && (selectedEndRange >= selectedEndRange)){
+                if(selectedEndRange === selectedStartRange){
+                    toast.error("Filter by date to get the specific date attendance data");
+                    clearFilters();
+                    setFilterCategory('date');
+                    return;
+                }
+
+                if(selectedStartRange > selectedEndRange){
+                    toast.error("Start Date cannot be ahead of the end date");
+                    clearFilters();
+                    return;
+                }
+            }
+
+            const filteredData = attData.filter(data => data.classDate >= selectedStartRange && data.classDate <= selectedEndRange);
+            calculateStats(filteredData);
+        }
+
+        filterByRange();
+    }, [selectedStartRange, selectedEndRange])
 
     const goBack = () => {
         setIsLoading(true);
         router.back();
     }
 
-    const clearFilters = () => {
+    const reset = () => {
         setFilters({
+            selectedMonth: "",
             selectedClass: "",
             selectedSection: "",
             selectedDate: "",
+            selectedStartRange: "",
+            selectedEndRange: "",
+            search: ""
+        })
+        setAttData([]);
+        setStudentStats([]);
+    }
+
+    const clearFilters = () => {
+        setFilters({
+            selectedMonth: "",
+            selectedClass: filters.selectedClass,
+            selectedSection: filters.selectedSection,
+            selectedDate: "",
+            selectedStartRange: "",
+            selectedEndRange: "",
             search: ""
         });
+    }
+
+    const filterCategoryChange = (category: string) => {
+        clearFilters();
+        setFilterCategory(category);
     }
 
     const exportToExcel = async () => {
@@ -272,6 +410,10 @@ export default function GetAttendance() {
                 a.href = url;
 
                 let finalName = `Attendance Stats By Date ${sessionId}`;
+                if (filters.selectedMonth != '') {
+                    finalName += `_${filters.selectedMonth}`;
+                }
+
                 if (filters.selectedClass != '') {
                     finalName += `_${filters.selectedClass}`;
                 }
@@ -280,7 +422,7 @@ export default function GetAttendance() {
                     finalName += `_${filters.selectedSection}`;
                 }
 
-                if (filters.selectedDate != ''){
+                if (filters.selectedDate != '') {
                     finalName += `_${filters.selectedDate}`;
                 }
 
@@ -291,7 +433,7 @@ export default function GetAttendance() {
                 a.download = (finalName + '.xlsx');
                 a.click();
                 URL.revokeObjectURL(url);
-            } 
+            }
             catch (err) {
                 console.error(err);
                 toast.error("An error occurred while exporting Excel");
@@ -329,6 +471,18 @@ export default function GetAttendance() {
                 finalName += `_${filters.selectedSection}`;
             }
 
+            if (filters.selectedMonth != '') {
+                finalName += `_${filters.selectedMonth}`;
+            }
+
+            if (filters.selectedDate != '') {
+                finalName += `_${filters.selectedDate}`;
+            }
+
+            if(filters.selectedStartRange != '' && filters.selectedEndRange != ''){
+                finalName += `_${filters.selectedStartRange}_to_${filters.selectedEndRange}`;
+            }
+
             if (filters.search != '') {
                 finalName += '_searchTerm_' + filters.search;
             }
@@ -336,7 +490,7 @@ export default function GetAttendance() {
             a.download = (finalName + '.xlsx');
             a.click();
             URL.revokeObjectURL(url);
-        } 
+        }
         catch (err) {
             console.error(err);
             toast.error("An error occurred while exporting Excel");
@@ -361,29 +515,67 @@ export default function GetAttendance() {
             <Header title='Sapient Heights' info={`View Attendance Data for session ${sessionId}`} />
 
             <div className="p-6 max-w-7xl mx-auto space-y-8">
-                <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-5">Today’s Attendance Summary</h2>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
-                        <StatCard title="Total" value={todayStats.total} color="from-gray-100 to-gray-200" />
-                        <StatCard title="Present" value={todayStats.presents} color="from-green-100 to-green-200" />
-                        <StatCard title="Absent" value={todayStats.absents} color="from-red-100 to-red-200" />
-                        <StatCard title="Leave" value={todayStats.leaves} color="from-yellow-100 to-yellow-200" />
-                    </div>
-                </div>
-
                 <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 space-y-5">
-                    <h2 className="text-lg font-semibold text-gray-800">Filters</h2>
-
-                    <div className="grid md:grid-cols-3 gap-4">
-                        <SelectField label="Class" name="selectedClass" value={selectedClass} onChange={handleChange} options={classes} />
-                        <SelectField label="Section" name="selectedSection" value={selectedSection} onChange={handleChange} options={sections} disabled={!selectedClass} />
-                        <InputField label="Date" name="selectedDate" value={selectedDate} onChange={handleChange} type="date" disabled={!selectedSection} />
-                        <InputField label="Search Student" name="search" value={search} onChange={handleChange} type="text" />
-                    </div>
-
-                    <Button text="Clear Filters" icon={<RouteOff />} onClick={clearFilters} setGreen />
+                    <form onSubmit={fetchDataByClass}>
+                        <FormSection title="Select Class" icon={<School />}>
+                            <div className="grid grid-cols-2 sm:grid-cols-2 gap-5">
+                                <SelectField label="Class" name="selectedClass" value={selectedClass} onChange={handleChange} options={classes} required />
+                                <SelectField label="Section" name="selectedSection" value={selectedSection} onChange={handleChange} options={sections} disabled={!selectedClass} required />
+                            </div>
+                            <FormFooterActions primaryLabel="Get Data" reset={reset} />
+                        </FormSection>
+                    </form>
                 </div>
+
+                {attData && attData.length > 0 && (
+                    <>
+                        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-5">{"Today's Attendance Summary"}</h2>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
+                                <StatCard title="Total Students" value={todayStats.total} color="from-gray-100 to-gray-200" />
+                                {(todayStats.presents !== 0 || todayStats.absents !== 0 || todayStats.leaves !== 0 )&& (
+                                    <>
+                                        <StatCard title="Present" value={todayStats.presents} color="from-green-100 to-green-200" />
+                                        <StatCard title="Absent" value={todayStats.absents} color="from-red-100 to-red-200" />
+                                        <StatCard title="Leave" value={todayStats.leaves} color="from-yellow-100 to-yellow-200" />
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 space-y-5">
+                            <h2 className="text-lg font-semibold text-gray-800">Filters</h2>
+
+                            <div className="grid md:grid-cols-5 gap-4">
+                                <Button text="Filter by Month" icon={<></>} onClick={() => filterCategoryChange('month')} setGreen={filterCategory === 'month'} />
+                                <Button text="Filter by Date" icon={<></>} onClick={() => filterCategoryChange('date')} setGreen={filterCategory === 'date'} />
+                                <Button text="Filter by Range" icon={<></>} onClick={() => filterCategoryChange('range')} setGreen={filterCategory === 'range'} />
+                            </div>
+
+                            <div className="grid md:grid-cols-3 gap-4">
+                                {filterCategory === 'month' && (
+                                    <SelectField label="Month/Year" name="selectedMonth" value={selectedMonth} onChange={handleChange} options={monthOptions} />
+                                )}
+                                {filterCategory === 'date' && (
+                                    <InputField label="Date" name="selectedDate" value={selectedDate} onChange={handleChange} type="date" />
+                                )}
+                                {filterCategory === 'range' && (
+                                    <>
+                                    <InputField label="Start Date" name="selectedStartRange" value={selectedStartRange} onChange={handleChange} type="date" />
+                                    <InputField label="End Date" name="selectedEndRange" value={selectedEndRange} onChange={handleChange} type="date" />
+                                    </>
+                                )}
+                            </div>
+
+                            <hr className="text-gray-100" />
+                            <InputField label="Search Student" name="search" value={search} onChange={handleChange} type="text" />
+
+
+                            <Button text="Clear Filters" icon={<RouteOff />} onClick={clearFilters} setGreen />
+                        </div>
+                    </>
+                )}
 
                 <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                     <h2 className="text-lg font-semibold mb-4 text-gray-800">Attendance Records</h2>
@@ -402,9 +594,9 @@ export default function GetAttendance() {
                                 </span>
                             )}
 
-                            {selectedClass !== '' && selectedSection !== '' && selectedDate === '' && (
+                            {selectedClass !== '' && selectedSection !== '' && selectedDate === '' && filteredStats.length > 0 && (
                                 <span className="px-4 py-1.5 text-sm bg-yellow-100 text-yellow-700 rounded-full font-medium shadow-sm">
-                                    Total Classes: {filteredStats[0].totalUniqueDates}
+                                    Total Classes: {filteredStats.length > 0 && filteredStats[0].totalUniqueDates}
                                 </span>
                             )}
 

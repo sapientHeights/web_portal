@@ -39,8 +39,17 @@ export default function ShowClassIncharge({ teachersData } : Props) {
     const [selectedClassInchargeData, setSelectedClassInchargeData] = useState<ClassInchargeData | null>(null);
     const [updateDialog, setUpdateDialog] = useState(false);
 
-    const { sessions, isLoading: sessionsLoading } = useSessions();
+    const { sessions, isLoading: sessionsLoading, activeSession } = useSessions();
     const { classes, isLoading: classesLoading } = useClasses();
+
+    useEffect(() => {
+        if(activeSession){
+            setClassSelection(prev => ({
+                ...prev,
+                sessionId: activeSession
+            }))
+        }
+    }, [activeSession])
 
     const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const { name, value } = e.target;

@@ -14,7 +14,7 @@ import { useSections } from "@/hooks/useSections";
 import { useSessions } from "@/hooks/useSessions";
 import { Book, NotebookText, Pencil, StepBack } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function Attendance() {
@@ -30,10 +30,23 @@ export default function Attendance() {
 
     const { classes, isLoading: classesLoading } = useClasses();
     const { sections, isLoading: sectionsLoading } = useSections(academicData.studentClass);
-    const { sessions, isLoading: sessionsLoading } = useSessions();
+    const { sessions, isLoading: sessionsLoading, activeSession } = useSessions();
     const [category, setCategory] = useState('markAtt');
 
     const [sessionId, setSessionId] = useState('');
+
+    useEffect(() => {
+        if(activeSession){
+            setAcademicData(prev => ({
+                ...prev,
+                sessionId: activeSession
+            }))
+
+            if(category === 'getAtt'){
+                setSessionId(activeSession);
+            }
+        }
+    }, [activeSession, category])
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         if(category === 'getAtt'){
