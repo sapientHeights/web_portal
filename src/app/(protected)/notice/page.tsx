@@ -1,6 +1,7 @@
 'use client';
 
 import Button from "@/components/ui/Button";
+import FileUpload from "@/components/ui/FileUpload";
 import FormFooterActions from "@/components/ui/FormFooterActions";
 import FormSection from "@/components/ui/FormSection";
 import FullPageLoader from "@/components/ui/FullPageLoader";
@@ -12,7 +13,7 @@ import TextAreaField from "@/components/ui/TextAreaField";
 import UserInfo from "@/components/ui/UserInfo";
 import { useUser } from "@/context/UserContext";
 import { useSessions } from "@/hooks/useSessions";
-import { Book, Newspaper, Pencil, StepBack } from "lucide-react";
+import { Book, Camera, Eye, Newspaper, Pencil, StepBack } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -23,6 +24,7 @@ type NoticeData = {
     title: string;
     subject: string;
     message: string;
+    image: string;
 }
 
 export default function Notice() {
@@ -41,8 +43,10 @@ export default function Notice() {
     const [selectionData, setSelectionData] = useState(initialSelectionData);
     const [showNotices, setShowNotices] = useState(false);
 
+    const [image, setImage] = useState<File | null>(null);
+
     useEffect(() => {
-        if(activeSession){
+        if (activeSession) {
             setSelectionData(prev => ({
                 ...prev,
                 sessionId: activeSession
@@ -57,13 +61,14 @@ export default function Notice() {
 
     const reset = (showToast?: boolean) => {
         if (category === 'add') {
-            if (JSON.stringify(selectionData) === JSON.stringify(initialSelectionData)) {
+            if ((JSON.stringify(selectionData) === JSON.stringify(initialSelectionData)) && image == null) {
                 if (showToast == null) {
                     toast.error("Nothing to clear!");
                 }
                 return;
             }
             setSelectionData(initialSelectionData);
+            setImage(null);
         }
         else {
             if (selectionData.sessionId === '' && selectionData.date === '') {
@@ -83,6 +88,7 @@ export default function Notice() {
     const handleCategoryClick = (category: string) => {
         reset(false);
         setCategory(category);
+        setNoticesData([]);
     }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -90,36 +96,48 @@ export default function Notice() {
         setSelectionData(prev => ({ ...prev, [name]: value }));
     };
 
+    const openFile = (id: string, fileName: string) => {
+        const fileUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/notices/${id}/${fileName}`;
+        window.open(fileUrl, '_blank');
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (category === 'add') {
-            if(new Date(selectionData.date).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0)){
+            if (new Date(selectionData.date).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0)) {
                 toast.error("Invalid date");
                 return;
             }
-            const noticeData = {
-                sessionId: selectionData.sessionId,
-                date: selectionData.date,
-                title: selectionData.title,
-                subject: selectionData.subject,
-                message: selectionData.message
-            }
+
             setPageLoading(true);
             try {
+                const form = new FormData();
+                form.append(
+                    "noticeData",
+                    JSON.stringify({
+                        sessionId: selectionData.sessionId,
+                        date: selectionData.date,
+                        title: selectionData.title,
+                        subject: selectionData.subject,
+                        message: selectionData.message,
+                        createdBy: user?.email,
+                    })
+                );
+
+                if(image){
+                    form.append("image", image);
+                }
+
                 const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/saveNotice.php`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        noticeData
-                    }),
+                    body: form
                 });
 
                 const data = await res.json();
                 if (!data.error) {
                     toast.success("Notice saved successfully");
+                    reset(false);
                 }
                 else {
                     toast.error("Failed to fetch Notice Data");
@@ -153,7 +171,7 @@ export default function Notice() {
                     setShowNotices(true);
                 }
                 else {
-                    toast.error("Failed to fetch Notice Data");
+                    toast.error("No Data available");
                 }
             }
             catch (err) {
@@ -195,7 +213,16 @@ export default function Notice() {
                                     <InputField label="Title" name="title" type="text" value={selectionData.title} onChange={handleChange} maxLength={500} required />
                                     <InputField label="Subject" name="subject" type="text" value={selectionData.subject} onChange={handleChange} maxLength={500} required />
                                     <TextAreaField label="Message" name="message" value={selectionData.message} onChange={handleChange} required maxLength={1000} />
-
+                                    <FileUpload
+                                        label="Image (Optional)"
+                                        name="image"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                setImage(e.target.files[0]);
+                                            }
+                                        }}
+                                        icon={<Camera />}
+                                        files={{ image }} />
                                 </>
                             )}
                         </div>
@@ -215,6 +242,7 @@ export default function Notice() {
                                         <th className="p-3 border-b">Title</th>
                                         <th className="p-3 border-b">Subject</th>
                                         <th className="p-3 border-b">Message</th>
+                                        <th className="p-3 border-b"></th>
                                     </tr>
                                 </thead>
 
@@ -225,12 +253,13 @@ export default function Notice() {
                                             <td className="p-3">{s.title}</td>
                                             <td className="p-3">{s.subject}</td>
                                             <td className="p-3">{s.message}</td>
+                                            <td className="p-3">{s.image && <Eye size={14} className="hover:cursor-pointer hover:text-green-800" onClick={() => openFile(s.sessionId, s.image)} />}</td>
                                         </tr>
                                     ))}
 
                                     {noticesData && noticesData.length === 0 && (
                                         <tr>
-                                            <td className="p-8" colSpan={4}><NoDataSection /></td>
+                                            <td className="p-8" colSpan={5}><NoDataSection /></td>
                                         </tr>
                                     )}
                                 </tbody>

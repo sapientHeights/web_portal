@@ -18,7 +18,7 @@ type Props = {
     allData: StudentAllData[] | TeacherAllData[] | null;
     setDialog: React.Dispatch<React.SetStateAction<DialogStateType>>;
     columns: string[];
-    values: (keyof StudentData | keyof TeacherData)[];
+    values: (keyof StudentAllData | keyof TeacherAllData)[];
     reportType: string;
 }
 

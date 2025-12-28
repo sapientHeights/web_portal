@@ -10,13 +10,13 @@ import FullPageLoader from '@/components/ui/FullPageLoader';
 const HomePage = () => {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
-    
+
     const goToLogin = () => {
         setLoading(true);
         router.push('/login');
     }
 
-    if(loading){
+    if (loading) {
         return <FullPageLoader />
     }
 
@@ -36,6 +36,14 @@ const HomePage = () => {
                     </div>
 
                     <div className="flex items-center space-x-4">
+                        <a
+                            href="https://expo.dev/artifacts/eas/ebS8ugJSwtQR9Jz6AXBxWx.apk"
+                            download
+                            className="px-8 py-3 bg-white text-purple-600 border border-purple-600 rounded-xl font-semibold hover:bg-purple-50 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 cursor-pointer"
+                        >
+                            Download the App
+                        </a>
+
                         <button onClick={goToLogin} className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 cursor-pointer">
                             Login
                         </button>
@@ -55,8 +63,8 @@ const HomePage = () => {
                             <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"> Sapient Heights</span>
                         </h1>
                         <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-                           Comprehensive administrative control for Sapient Heights. 
-                           Manage teachers, students, classes, and finances from one powerful dashboard designed for school administrators.
+                            Comprehensive administrative control for Sapient Heights.
+                            Manage teachers, students, classes, and finances from one powerful dashboard designed for school administrators.
                         </p>
                     </div>
 

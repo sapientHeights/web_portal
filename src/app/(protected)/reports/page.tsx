@@ -217,22 +217,22 @@ export default function Reports() {
                 </div>
             )}
 
-            {reportType === "students" && studentsData && (
+            {reportType === "students" && studentsData && studentsData.length > 0 && (
                 <DataTable
                     allData={studentsData}
                     setDialog={setDialog}
-                    columns={["Student Name", "Father Name", "Mother Name", "DOB"]}
-                    values={["studentName", "fatherName", "motherName", "dob"]}
+                    columns={["Student ID", "Student Name", "Father Name", "Mother Name"]}
+                    values={["sId", "studentName", "fatherName", "motherName"]}
                     reportType={reportType}
                 />
             )}
 
-            {reportType === "teachers" && teachersData && (
+            {reportType === "teachers" && teachersData && teachersData.length > 0 && (
                 <DataTable
                     allData={teachersData}
                     setDialog={setDialog}
-                    columns={["Teacher Name", "DOB", "Qualification", "Experience"]}
-                    values={["teacherName", "dob", "qualification", "experience"]}
+                    columns={["Teacher ID", "Teacher Name", "Qualification", "Experience"]}
+                    values={["tId", "teacherName", "qualification", "experience"]}
                     reportType={reportType}
                 />
             )}
