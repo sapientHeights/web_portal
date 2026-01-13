@@ -10,6 +10,7 @@ import FullPageLoader from '@/components/ui/FullPageLoader';
 const HomePage = () => {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    //const appUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/app-build/sapient-app.apk`;
 
     const goToLogin = () => {
         setLoading(true);
@@ -24,7 +25,7 @@ const HomePage = () => {
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
             {/* Header */}
             <header className="relative z-10">
-                <nav className="container mx-auto px-6 py-6 flex items-center justify-between">
+                <nav className="container mx-auto px-6 py-6 flex flex-col sm:flex-row gap-5 items-center justify-between">
                     <div className="flex items-center space-x-3">
                         <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center">
                             <GraduationCap className="w-6 h-6 text-white" />
@@ -37,7 +38,7 @@ const HomePage = () => {
 
                     <div className="flex items-center space-x-4">
                         <a
-                            href="https://expo.dev/artifacts/eas/ebS8ugJSwtQR9Jz6AXBxWx.apk"
+                            href="https://expo.dev/artifacts/eas/vWXo1D6aqK3UNJnRUWwQCt.apk"
                             download
                             className="px-8 py-3 bg-white text-purple-600 border border-purple-600 rounded-xl font-semibold hover:bg-purple-50 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 cursor-pointer"
                         >
@@ -58,7 +59,7 @@ const HomePage = () => {
                         <span className="inline-block px-4 py-2 bg-white/80 text-purple-600 rounded-full text-sm font-medium mb-6 shadow-sm">
                             🏫 Sapient Heights Administrative Portal
                         </span>
-                        <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+                        <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
                             Efficient Administration for
                             <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"> Sapient Heights</span>
                         </h1>
