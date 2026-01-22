@@ -132,7 +132,7 @@ export default function DataDialog({ dialog, setDialog, reportType, getData }: P
                                     return (
                                         <div key={index}>
                                             <p className="text-black text-md">{teacherFieldLabels[key as keyof typeof selectedData]}</p>
-                                            <p className={`${value === null ? 'text-red-500' : 'text-gray-500'} text-md`}>{value === null ? 'Not Available' : value}</p>
+                                            <p className={`${value === null ? 'text-red-500' : 'text-gray-500'} text-md wrap-break-word`}>{value === null ? 'Not Available' : value}</p>
                                         </div>
                                     );
                                 }

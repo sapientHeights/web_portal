@@ -38,7 +38,7 @@ const HomePage = () => {
 
                     <div className="flex items-center space-x-4">
                         <a
-                            href="https://expo.dev/artifacts/eas/vWXo1D6aqK3UNJnRUWwQCt.apk"
+                            href="https://expo.dev/artifacts/eas/u8jcLVFZrpPzBUHcsr8hMU.apk"
                             download
                             className="px-8 py-3 bg-white text-purple-600 border border-purple-600 rounded-xl font-semibold hover:bg-purple-50 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 cursor-pointer"
                         >
