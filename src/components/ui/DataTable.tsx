@@ -1,6 +1,6 @@
 'use client';
 
-import { StudentAllData, StudentData } from "@/types/student";
+import { StudentAllData, StudentData, StudentReportData, StudentAllReportData } from "@/types/student";
 import { TeacherAllData, TeacherData } from "@/types/teacher";
 import { ArrowRight } from "lucide-react";
 import toast from "react-hot-toast";
@@ -9,13 +9,13 @@ import { useEffect, useState } from "react";
 
 type DialogStateType = {
     openDialog: boolean;
-    selectedData: StudentData | TeacherData | null;
+    selectedData: StudentReportData | TeacherData | null;
     detailsTab: boolean;
     id: string | null;
 };
 
 type Props = {
-    allData: StudentAllData[] | TeacherAllData[] | null;
+    allData: StudentAllReportData[] | TeacherAllData[] | null;
     setDialog: React.Dispatch<React.SetStateAction<DialogStateType>>;
     columns: string[];
     values: (keyof StudentAllData | keyof TeacherAllData)[];
@@ -24,7 +24,7 @@ type Props = {
 
 export default function DataTable({ allData, setDialog, columns, values, reportType }: Props) {
     const [searchTerm, setSearchTerm] = useState('');
-    const [filteredData, setFilteredData] = useState<StudentAllData[] | TeacherAllData[] | null>(null);
+    const [filteredData, setFilteredData] = useState<StudentAllReportData[] | TeacherAllData[] | null>(null);
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { value } = e.target;
@@ -35,7 +35,7 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
         if (searchTerm === '') {
             const sortedData = allData 
                 ? reportType === 'students' 
-                    ? [...(allData as StudentAllData[])].sort((a, b) => a.studentName.localeCompare(b.studentName))
+                    ? [...(allData as StudentAllReportData[])].sort((a, b) => a.studentName.localeCompare(b.studentName))
                     : [...(allData as TeacherAllData[])].sort((a, b) => a.teacherName.localeCompare(b.teacherName))
                 : []
 
@@ -44,7 +44,7 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
         else {
             const searchedData = allData
                 ? reportType === 'students'
-                    ? (allData as StudentAllData[]).filter((data) => data.studentName.toLowerCase().includes(searchTerm.toLowerCase())).sort((a, b) => a.studentName.localeCompare(b.studentName))
+                    ? (allData as StudentAllReportData[]).filter((data) => data.studentName.toLowerCase().includes(searchTerm.toLowerCase())).sort((a, b) => a.studentName.localeCompare(b.studentName))
                     : (allData as TeacherAllData[]).filter((data) => data.teacherName.toLowerCase().includes(searchTerm.toLowerCase())).sort((a, b) => a.teacherName.localeCompare(b.teacherName))
                 : null;
             
@@ -52,7 +52,7 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
         }
     }, [searchTerm])
 
-    const configureDialog = (data: StudentAllData | TeacherAllData) => {
+    const configureDialog = (data: StudentAllReportData | TeacherAllData) => {
         if ('sId' in data) {
             setDialog({
                 openDialog: true,
@@ -75,7 +75,7 @@ export default function DataTable({ allData, setDialog, columns, values, reportT
     }
 
     if (reportType === "students") {
-        allData = allData as StudentAllData[];
+        allData = allData as StudentAllReportData[];
     }
     else {
         allData = allData as TeacherAllData[];

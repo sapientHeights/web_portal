@@ -14,7 +14,7 @@ import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useSections } from "@/hooks/useSections";
 import { useSessions } from "@/hooks/useSessions";
-import { StudentAllData, StudentData } from "@/types/student";
+import { StudentAllReportData, StudentData, StudentReportData } from "@/types/student";
 import { TeacherAllData, TeacherData } from "@/types/teacher";
 import { Briefcase, Glasses, Newspaper, NotepadText, StepBack, User } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -34,10 +34,10 @@ export default function Reports() {
     const { classes, isLoading: classesLoading } = useClasses();
     const { sections, isLoading: sectionsLoading } = useSections(stdSesData.studentClass);
 
-    const [studentsData, setStudentsData] = useState<StudentAllData[] | null>(null);
+    const [studentsData, setStudentsData] = useState<StudentAllReportData[] | null>(null);
     const [dialog, setDialog] = useState<{
         openDialog: boolean;
-        selectedData: StudentData | TeacherData | null;
+        selectedData: StudentReportData | TeacherData | null;
         detailsTab: boolean;
         id: string | null;
     }>({
@@ -69,6 +69,7 @@ export default function Reports() {
         const { name, value } = e.target;
         if (name === 'sessionId') {
             setStdSesData(prev => ({ ...prev, ['studentClass']: '' }));
+            setStdSesData(prev => ({ ...prev, ['section']: '' }));
         }
 
         if (name === 'studentClass') {
@@ -84,6 +85,11 @@ export default function Reports() {
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     const getStudentsData = async () => {
+        if(stdSesData.sessionId === "" || stdSesData.studentClass === "" || stdSesData.section === ""){
+            toast.error("Please fill all the required data");
+            return;
+        }
+
         try {
             setPageLoading(true);
             const res = await fetch(`${backendUrl}/getStudentsByClassData.php`, {
@@ -174,7 +180,7 @@ export default function Reports() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-100 to-blue-200 p-6 relative">
+        <div className="min-h-screen bg-linear-to-br from-blue-100 to-blue-200 p-6 relative">
             {/* Back Button */}
             <Button onClick={goBack} icon={<StepBack size={18} />} text='Go Back' />
 

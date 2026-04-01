@@ -137,7 +137,7 @@ export default function Settings() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-100 to-blue-200 p-6 relative">
+        <div className="min-h-screen bg-linear-to-br from-blue-100 to-blue-200 p-6 relative">
             {/* Back Button */}
             <Button onClick={goBack} icon={<StepBack size={18} />} text='Go Back' />
 

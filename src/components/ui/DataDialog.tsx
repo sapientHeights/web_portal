@@ -1,5 +1,5 @@
 'use client';
-import { StudentData, studentDocLabels, studentFieldLabels } from "@/types/student";
+import { StudentData, studentDocLabels, studentFieldLabels, StudentReportData, studentFieldReportLabels } from "@/types/student";
 import Button from "./Button";
 import { ArrowBigLeft, Pencil, PencilIcon, PencilLine, UserRoundPen } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -10,7 +10,7 @@ import UpdateTeacherData from "./UpdateTeacherData";
 
 type DialogStateType = {
     openDialog: boolean;
-    selectedData: StudentData | TeacherData | null;
+    selectedData: StudentReportData | TeacherData | null;
     detailsTab: boolean;
     id: string | null;
 };
@@ -114,12 +114,12 @@ export default function DataDialog({ dialog, setDialog, reportType, getData }: P
 
                             if (dialog.detailsTab) {
                                 if (reportType === "students") {
-                                    if (studentFieldLabels[key as keyof typeof selectedData] === undefined) return null;
+                                    if (studentFieldReportLabels[key as keyof typeof selectedData] === undefined) return null;
                                     const value = selectedData[key as keyof typeof selectedData];
 
                                     return (
                                         <div key={index}>
-                                            <p className="text-black text-md">{studentFieldLabels[key as keyof typeof selectedData]}</p>
+                                            <p className="text-black text-md">{studentFieldReportLabels[key as keyof typeof selectedData]}</p>
                                             <p className={`${value === null ? 'text-red-500' : 'text-gray-500'} text-md`}>{value === null ? 'Not Available' : value}</p>
                                         </div>
                                     );

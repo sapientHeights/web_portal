@@ -86,6 +86,10 @@ export default function Dashboard() {
                 setPageLoading(true);
                 router.push('/notice');
                 break;
+            case 8:
+                setPageLoading(true);
+                router.push('/promotions');
+                break;
             default:
                 toast("Coming Soon...");
         }
@@ -113,7 +117,7 @@ export default function Dashboard() {
 
     return (
         <>
-            <div className="min-h-screen bg-gradient-to-br from-blue-100 to-blue-200 p-6 font-sans relative">
+            <div className="min-h-screen bg-linear-to-br from-blue-100 to-blue-200 p-6 font-sans relative">
                 {/* Logout Button */}
                 <Button onClick={logout} icon={<LogOut size={18} />} text='Logout' />
 
@@ -144,12 +148,12 @@ export default function Dashboard() {
                 {/* Dashboard Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                     {dashboardCards.map((card, idx) => {
-                        if (user && user.role === 'A' && card.id === 6) return null;
+                        if (user && user.role === 'A' && (card.id === 6 || card.id === 8)) return null;
                         return (
                             <div
                                 key={idx}
                                 onClick={() => navigateTo(card.id)}
-                                className="bg-gradient-to-br from-blue-500 to-purple-500 p-6 rounded-2xl text-white cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] transition-all duration-300 shadow-xl relative overflow-hidden group"
+                                className="bg-linear-to-br from-blue-500 to-purple-500 p-6 rounded-2xl text-white cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] transition-all duration-300 shadow-xl relative overflow-hidden group"
                             >
                                 <div className="bg-white/20 border border-white/10 backdrop-blur-md w-14 h-14 flex items-center justify-center rounded-xl mb-5">
                                     <card.icon className='w-6 h-6 text-white' />
@@ -165,7 +169,7 @@ export default function Dashboard() {
                 {/* Reset Password */}
                 {user?.firstLogin === 1 && showResetPassword && (
                     <div className="fixed top-0 left-0 w-full h-screen bg-black/50 z-50 flex items-center justify-center">
-                        <div className="w-full max-w-md bg-gradient-to-br from-blue-500 to-purple-500 backdrop-blur-lg rounded-2xl shadow-2xl p-6">
+                        <div className="w-full max-w-md bg-linear-to-br from-blue-500 to-purple-500 backdrop-blur-lg rounded-2xl shadow-2xl p-6">
                             <div className='flex justify-center items-center gap-2 mb-2'>
                                 <TriangleAlert className='h-6 w-6 text-red-700' />
                                 <p className='text-center text-white font-semibold text-md tracking-wider'>Reset Your Password for Better Security</p>

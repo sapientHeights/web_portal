@@ -117,6 +117,7 @@ export default function GetAttendance() {
                 const sortedData = data.attData.sort((a: AttData, b: AttData) => a.studentName.localeCompare(b.studentName));
                 setAttData(sortedData);
                 calTodayStatsData(sortedData);
+                setNoData(false);
             } else {
                 setNoData(true);
             }
@@ -307,20 +308,20 @@ export default function GetAttendance() {
 
     useEffect(() => {
         const filterByRange = () => {
-            if(selectedStartRange === "" && selectedEndRange === ""){
+            if (selectedStartRange === "" && selectedEndRange === "") {
                 calculateStats();
                 return;
             }
 
-            if((selectedStartRange !== "" && selectedEndRange !== "") && (selectedEndRange >= selectedEndRange)){
-                if(selectedEndRange === selectedStartRange){
+            if ((selectedStartRange !== "" && selectedEndRange !== "") && (selectedEndRange >= selectedEndRange)) {
+                if (selectedEndRange === selectedStartRange) {
                     toast.error("Filter by date to get the specific date attendance data");
                     clearFilters();
                     setFilterCategory('date');
                     return;
                 }
 
-                if(selectedStartRange > selectedEndRange){
+                if (selectedStartRange > selectedEndRange) {
                     toast.error("Start Date cannot be ahead of the end date");
                     clearFilters();
                     return;
@@ -479,7 +480,7 @@ export default function GetAttendance() {
                 finalName += `_${filters.selectedDate}`;
             }
 
-            if(filters.selectedStartRange != '' && filters.selectedEndRange != ''){
+            if (filters.selectedStartRange != '' && filters.selectedEndRange != '') {
                 finalName += `_${filters.selectedStartRange}_to_${filters.selectedEndRange}`;
             }
 
@@ -504,12 +505,8 @@ export default function GetAttendance() {
         return <FullPageLoader />;
     }
 
-    if (noData) {
-        return <NoDataSection />;
-    }
-
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-100 to-blue-200 p-6 relative">
+        <div className="min-h-screen bg-linear-to-br from-blue-100 to-blue-200 p-6 relative">
             <Button onClick={goBack} icon={<StepBack size={18} />} text='Go Back' />
             <UserInfo name={user ? user.name : 'Name'} role={user ? user.desc : 'Position'} />
             <Header title='Sapient Heights' info={`View Attendance Data for session ${sessionId}`} />
@@ -527,14 +524,18 @@ export default function GetAttendance() {
                     </form>
                 </div>
 
-                {attData && attData.length > 0 && (
+                {noData && (
+                    <NoDataSection />
+                )}
+
+                {!noData && attData && attData.length > 0 && (
                     <>
                         <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                             <h2 className="text-xl font-semibold text-gray-800 mb-5">{"Today's Attendance Summary"}</h2>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
                                 <StatCard title="Total Students" value={todayStats.total} color="from-gray-100 to-gray-200" />
-                                {(todayStats.presents !== 0 || todayStats.absents !== 0 || todayStats.leaves !== 0 )&& (
+                                {(todayStats.presents !== 0 || todayStats.absents !== 0 || todayStats.leaves !== 0) && (
                                     <>
                                         <StatCard title="Present" value={todayStats.presents} color="from-green-100 to-green-200" />
                                         <StatCard title="Absent" value={todayStats.absents} color="from-red-100 to-red-200" />
@@ -562,8 +563,8 @@ export default function GetAttendance() {
                                 )}
                                 {filterCategory === 'range' && (
                                     <>
-                                    <InputField label="Start Date" name="selectedStartRange" value={selectedStartRange} onChange={handleChange} type="date" />
-                                    <InputField label="End Date" name="selectedEndRange" value={selectedEndRange} onChange={handleChange} type="date" />
+                                        <InputField label="Start Date" name="selectedStartRange" value={selectedStartRange} onChange={handleChange} type="date" />
+                                        <InputField label="End Date" name="selectedEndRange" value={selectedEndRange} onChange={handleChange} type="date" />
                                     </>
                                 )}
                             </div>
@@ -577,101 +578,104 @@ export default function GetAttendance() {
                     </>
                 )}
 
-                <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                    <h2 className="text-lg font-semibold mb-4 text-gray-800">Attendance Records</h2>
+                {!noData && (
+                    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+                        <h2 className="text-lg font-semibold mb-4 text-gray-800">Attendance Records</h2>
 
-                    {(selectedClass !== '' || selectedSection !== '') && (
-                        <div className="flex flex-wrap gap-3 mt-4 mb-6">
-                            {selectedClass !== '' && (
-                                <span className="px-4 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-full font-medium shadow-sm">
-                                    Class: {selectedClass}
-                                </span>
-                            )}
+                        {(selectedClass !== '' || selectedSection !== '') && (
+                            <div className="flex flex-wrap gap-3 mt-4 mb-6">
+                                {selectedClass !== '' && (
+                                    <span className="px-4 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-full font-medium shadow-sm">
+                                        Class: {selectedClass}
+                                    </span>
+                                )}
 
-                            {selectedSection !== '' && (
-                                <span className="px-4 py-1.5 text-sm bg-purple-100 text-purple-700 rounded-full font-medium shadow-sm">
-                                    Section: {selectedSection}
-                                </span>
-                            )}
+                                {selectedSection !== '' && (
+                                    <span className="px-4 py-1.5 text-sm bg-purple-100 text-purple-700 rounded-full font-medium shadow-sm">
+                                        Section: {selectedSection}
+                                    </span>
+                                )}
 
-                            {selectedClass !== '' && selectedSection !== '' && selectedDate === '' && filteredStats.length > 0 && (
-                                <span className="px-4 py-1.5 text-sm bg-yellow-100 text-yellow-700 rounded-full font-medium shadow-sm">
-                                    Total Classes: {filteredStats.length > 0 && filteredStats[0].totalUniqueDates}
-                                </span>
-                            )}
+                                {selectedClass !== '' && selectedSection !== '' && selectedDate === '' && filteredStats.length > 0 && (
+                                    <span className="px-4 py-1.5 text-sm bg-yellow-100 text-yellow-700 rounded-full font-medium shadow-sm">
+                                        Total Classes: {filteredStats.length > 0 && filteredStats[0].totalUniqueDates}
+                                    </span>
+                                )}
 
-                            {selectedClass !== '' && selectedSection !== '' && selectedDate !== '' && (
-                                <span className="px-4 py-1.5 text-sm bg-red-100 text-red-700 rounded-full font-medium shadow-sm">
-                                    Date: {selectedDate}
-                                </span>
-                            )}
-                        </div>
-                    )}
+                                {selectedClass !== '' && selectedSection !== '' && selectedDate !== '' && (
+                                    <span className="px-4 py-1.5 text-sm bg-red-100 text-red-700 rounded-full font-medium shadow-sm">
+                                        Date: {selectedDate}
+                                    </span>
+                                )}
+                            </div>
+                        )}
 
 
-                    <div className="overflow-auto max-h-[500px] rounded-lg border border-gray-200">
-                        <table className="min-w-full text-sm">
-                            <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
-                                <tr className="text-left text-gray-700">
-                                    <th className="p-3 border-b">S.No</th>
-                                    <th className="p-3 border-b">Student</th>
-                                    {!selectedDate && (
-                                        <>
-                                            {selectedClass === '' && <th className="p-3 border-b">Class</th>}
-                                            {selectedSection === '' && <th className="p-3 border-b">Section</th>}
-                                            {selectedSection === '' && <th className="p-3 border-b">Total Classes</th>}
-                                            <th className="p-3 border-b">Presents</th>
-                                            <th className="p-3 border-b">Absents</th>
-                                            <th className="p-3 border-b">Leaves</th>
-                                            <th className="p-3 border-b text-center">Attendance %</th>
-                                        </>
-                                    )}
-
-                                    {selectedDate && (
-                                        <th className="p-3 border-b">Attendance</th>
-                                    )}
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                {filteredStats && filteredStats.length > 0 && filteredStats.map((s, idx) => (
-                                    <tr key={idx} className="hover:bg-gray-50 border-b">
-                                        <td className="p-3">{idx + 1}</td>
-                                        <td className="p-3">{s.name}</td>
+                        <div className="overflow-auto max-h-[500px] rounded-lg border border-gray-200">
+                            <table className="min-w-full text-sm">
+                                <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                                    <tr className="text-left text-gray-700">
+                                        <th className="p-3 border-b">S.No</th>
+                                        <th className="p-3 border-b">Student</th>
                                         {!selectedDate && (
                                             <>
-                                                {selectedClass === '' && <td className="p-3">{s.class}</td>}
-                                                {selectedSection === '' && <td className="p-3">{s.section}</td>}
-                                                {selectedSection === '' && <td className="p-3">{s.totalUniqueDates}</td>}
-                                                <td className="p-3">{s.presents}</td>
-                                                <td className="p-3">{s.absents}</td>
-                                                <td className="p-3">{s.leaves}</td>
-                                                <td className="p-3 text-center font-semibold">{s.attendancePercentage}%</td>
+                                                {selectedClass === '' && <th className="p-3 border-b">Class</th>}
+                                                {selectedSection === '' && <th className="p-3 border-b">Section</th>}
+                                                {selectedSection === '' && <th className="p-3 border-b">Total Classes</th>}
+                                                <th className="p-3 border-b">Presents</th>
+                                                <th className="p-3 border-b">Absents</th>
+                                                <th className="p-3 border-b">Leaves</th>
+                                                <th className="p-3 border-b text-center">Attendance %</th>
                                             </>
                                         )}
 
                                         {selectedDate && (
-                                            <td className="p-3 text-left font-semibold">
-                                                {getAttforDate(s.sId, selectedClass, selectedSection, selectedDate)}
-                                            </td>
+                                            <th className="p-3 border-b">Attendance</th>
                                         )}
                                     </tr>
-                                ))}
+                                </thead>
 
-                                {filteredStats && filteredStats.length === 0 && (
-                                    <tr>
-                                        <td className="p-8" colSpan={10}><NoDataSection /></td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                <tbody>
+                                    {filteredStats && filteredStats.length > 0 && filteredStats.map((s, idx) => (
+                                        <tr key={idx} className="hover:bg-gray-50 border-b">
+                                            <td className="p-3">{idx + 1}</td>
+                                            <td className="p-3">{s.name}</td>
+                                            {!selectedDate && (
+                                                <>
+                                                    {selectedClass === '' && <td className="p-3">{s.class}</td>}
+                                                    {selectedSection === '' && <td className="p-3">{s.section}</td>}
+                                                    {selectedSection === '' && <td className="p-3">{s.totalUniqueDates}</td>}
+                                                    <td className="p-3">{s.presents}</td>
+                                                    <td className="p-3">{s.absents}</td>
+                                                    <td className="p-3">{s.leaves}</td>
+                                                    <td className="p-3 text-center font-semibold">{s.attendancePercentage}%</td>
+                                                </>
+                                            )}
+
+                                            {selectedDate && (
+                                                <td className="p-3 text-left font-semibold">
+                                                    {getAttforDate(s.sId, selectedClass, selectedSection, selectedDate)}
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+
+                                    {filteredStats && filteredStats.length === 0 && (
+                                        <tr>
+                                            <td className="p-8" colSpan={10}><NoDataSection /></td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="mt-5">
+                            <Button text="Export to Excel" icon={<FileDown />} onClick={exportToExcel} setGreen />
+                        </div>
+
                     </div>
+                )}
 
-                    <div className="mt-5">
-                        <Button text="Export to Excel" icon={<FileDown />} onClick={exportToExcel} setGreen />
-                    </div>
-
-                </div>
 
             </div>
         </div>
@@ -689,7 +693,7 @@ function StatCard({
     color: string;
 }) {
     return (
-        <div className={`bg-gradient-to-br ${color} rounded-xl p-4 shadow-sm border border-gray-200`}>
+        <div className={`bg-linear-to-br ${color} rounded-xl p-4 shadow-sm border border-gray-200`}>
             <div className="text-xs text-gray-600">{title}</div>
             <div className="text-3xl font-semibold text-gray-900">{value}</div>
         </div>
