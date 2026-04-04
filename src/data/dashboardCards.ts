@@ -1,4 +1,4 @@
-import { UserPlus, School, Receipt, FileBarChart, CalendarCheck, Settings, Newspaper, Axis3D } from 'lucide-react';
+import { UserPlus, School, Receipt, FileBarChart, CalendarCheck, Settings, Newspaper, Axis3D, Sheet } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 type DashboardCard = {
@@ -66,5 +66,12 @@ export const dashboardCards: DashboardCard[] = [
         description: 'Promote students to the next class',
         icon: Axis3D,
         module: 'promotions'
+    },
+    {
+        id: 9,
+        title: 'Salary Management',
+        description: 'Calculate the net salary for the employees',
+        icon: Sheet,
+        module: 'salary'
     }
 ];

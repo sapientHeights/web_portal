@@ -90,6 +90,10 @@ export default function Dashboard() {
                 setPageLoading(true);
                 router.push('/promotions');
                 break;
+            case 9:
+                setPageLoading(true);
+                router.push('/salary');
+                break;
             default:
                 toast("Coming Soon...");
         }
@@ -148,7 +152,7 @@ export default function Dashboard() {
                 {/* Dashboard Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                     {dashboardCards.map((card, idx) => {
-                        if (user && user.role === 'A' && (card.id === 6 || card.id === 8)) return null;
+                        if (user && user.role === 'A' && (card.id === 6 || card.id === 8 || card.id === 9)) return null;
                         return (
                             <div
                                 key={idx}

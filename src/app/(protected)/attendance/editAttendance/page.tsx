@@ -250,7 +250,7 @@ export default function EditAttendance() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white text-center">
-                            {filteredAttData && filteredAttData.length === 0 && (
+                            {!noData && filteredAttData && filteredAttData.length === 0 && (
                                 <tr className="p-10">
                                     <td colSpan={4}><NoDataSection /></td>
                                 </tr>
