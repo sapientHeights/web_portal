@@ -1,4 +1,4 @@
-import { UserPlus, School, Receipt, FileBarChart, CalendarCheck, Settings, Newspaper, Axis3D, Sheet } from 'lucide-react';
+import { UserPlus, School, Receipt, FileBarChart, CalendarCheck, Settings, Newspaper, Axis3D, Sheet, BookCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 type DashboardCard = {
@@ -73,5 +73,12 @@ export const dashboardCards: DashboardCard[] = [
         description: 'Calculate the net salary for the employees',
         icon: Sheet,
         module: 'salary'
+    },
+    {
+        id: 10,
+        title: 'Exam Management',
+        description: 'Manage the examinations for the students',
+        icon: BookCheck,
+        module: 'exams'
     }
 ];

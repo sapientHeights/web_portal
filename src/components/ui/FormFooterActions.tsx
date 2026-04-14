@@ -9,7 +9,7 @@ export default function FormFooterActions({ primaryLabel, reset, cancel }: Props
         <div className="mt-10 flex justify-center flex-col sm:flex-row gap-4">
             <button
                 type="submit"
-                className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-8 py-3 rounded-lg font-semibold hover:shadow-xl transition-all cursor-pointer"
+                className="bg-linear-to-r from-indigo-500 to-purple-600 text-white px-8 py-3 rounded-lg font-semibold hover:shadow-xl transition-all cursor-pointer"
             >
                 {primaryLabel}
             </button>

@@ -94,6 +94,10 @@ export default function Dashboard() {
                 setPageLoading(true);
                 router.push('/salary');
                 break;
+            case 10:
+                setPageLoading(true);
+                router.push('/exams');
+                break;
             default:
                 toast("Coming Soon...");
         }
