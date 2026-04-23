@@ -8,30 +8,32 @@ import FormSection from "@/components/ui/FormSection";
 import FullPageLoader from "@/components/ui/FullPageLoader";
 import Header from "@/components/ui/Header";
 import InputField from "@/components/ui/InputField";
-import MultiSelectField from "@/components/ui/MultiSelectField";
 import SelectField from "@/components/ui/SelectField";
 import TextAreaField from "@/components/ui/TextAreaField";
 import UserInfo from "@/components/ui/UserInfo";
 import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
-import { useCommonSubjects } from "@/hooks/useCommonSubjects";
 import { useSessions } from "@/hooks/useSessions";
-import { BadgePlus, BookOpenCheck, ChevronRight, Delete, Dices, Edit, Layers, Layers2, Pencil, SquareSigma, StepBack } from "lucide-react";
+import { useSubjects } from "@/hooks/useSubjects";
+import { BadgePlus, BookOpenCheck, ChevronRight, Delete, Dices, Edit, Layers, Layers2, ListPlus, NotebookPen, Pencil, SquareSigma, StepBack } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
+
+type ExamItem = {
+    classId: string;
+    subjectId: string;
+    date: string;
+    minMarks: string;
+    maxMarks: string;
+};
 
 type ExamData = {
     sessionId: string;
-    classes: string[];
-    subject: string;
-    date: string;
     name: string;
     desc: string;
-    minMarks: string;
-    maxMarks: string;
-    analysisClass: string;
-}
+    items: ExamItem[];
+};
 
 type ExamDBData = {
     id: number;
@@ -43,20 +45,7 @@ type ExamDBData = {
     description: string;
     minMarks: string;
     maxMarks: string;
-}
-
-type ExamAnalysisData = {
-    id: string;
-    sId: string;
-    examId: string;
-    markedBy: string;
-    date: string;
-    marks: string;
-    att: string;
-    studentName: string;
-    curSessId: string;
-    curClass: string;
-    curSection: string;
+    uniqueExamId: string;
 }
 
 export default function Exams() {
@@ -67,9 +56,7 @@ export default function Exams() {
     const { classes, isLoading: classesLoading } = useClasses();
     const [category, setCategory] = useState('add');
 
-    const initialExamData = {
-        sessionId: "", classes: [], subject: "", date: "", name: "", desc: "", minMarks: "", maxMarks: "", analysisClass: ""
-    }
+    const initialExamData = { sessionId: "", name: "", desc: "", items: [{ classId: "", subjectId: "", date: "", minMarks: "", maxMarks: "" }] };
 
     const [newExamData, setNewExamData] = useState<ExamData>(initialExamData);
     const [examsData, setExamsData] = useState<ExamDBData[]>();
@@ -77,8 +64,10 @@ export default function Exams() {
     const [enableEdit, setEnableEdit] = useState(false);
     const [enableDelete, setEnableDelete] = useState(false);
     const [selectedExamData, setSelectedExamData] = useState<ExamDBData>();
+    const [editExamInfo, setEditExamInfo] = useState(false);
+    const [deleteAllExams, setDeleteAllExams] = useState(false);
 
-    const { subjects, isLoading: subjectsLoading } = useCommonSubjects(newExamData.classes);
+    const { subjects, isLoading: subjectsLoading } = useSubjects(newExamData.items[newExamData.items.length - 1].classId);
 
     const goBack = () => {
         setPageLoading(true);
@@ -110,6 +99,13 @@ export default function Exams() {
     };
 
     const handleMultiSelectChange = (name: string, values: string[]) => {
+        if (name == 'classes') {
+            setNewExamData(prev => ({
+                ...prev,
+                subjects: []
+            }));
+        }
+
         setNewExamData(prev => ({
             ...prev,
             [name]: values
@@ -128,8 +124,8 @@ export default function Exams() {
             setNewExamData(initialExamData);
             setActiveSession();
         }
-        else if(category === 'view'){
-            if (newExamData.sessionId === '' && newExamData.classes.length === 0) {
+        else if (category === 'view' || category === 'analysis') {
+            if (newExamData.sessionId === '') {
                 if (showToast) {
                     toast.error("Nothing to clear!");
                 }
@@ -138,16 +134,7 @@ export default function Exams() {
             setNewExamData(initialExamData);
             setActiveSession();
         }
-        else{
-            if (newExamData.sessionId === '' && newExamData.analysisClass === '') {
-                if (showToast) {
-                    toast.error("Nothing to clear!");
-                }
-                return;
-            }
-            setActiveSession();
-        }
-        
+
         if (showToast) {
             toast.success("Fields cleared!");
         }
@@ -163,7 +150,6 @@ export default function Exams() {
             },
             body: JSON.stringify({
                 sessionId: newExamData.sessionId,
-                classes: category === 'view' ? newExamData.classes : new Array(newExamData.analysisClass),
             }),
         });
 
@@ -188,36 +174,11 @@ export default function Exams() {
                 toast.error("Please fill all the required data");
                 return;
             }
-
-            if (newExamData.classes.length === 0) {
-                toast.error("Please select a class");
-                return;
-            }
-
-            if (newExamData.subject === "") {
-                toast.error("Please select a subject");
-                return;
-            }
-
-            if (Number(newExamData.minMarks) < 0 || Number(newExamData.maxMarks) > 100) {
-                toast.error("Please enter valid exam marks");
-                return;
-            }
-
-            if (new Date(newExamData.date) < new Date()) {
-                toast.error("Date is invalid");
-                return;
-            }
         }
-        else if (category === 'view') {
-            if (newExamData.sessionId === '' || newExamData.classes.length === 0) {
+        else if (category === 'view' || category === 'analysis') {
+            if (newExamData.sessionId === '') {
                 toast.error("Please fill all the required data");
                 return;
-            }
-        }
-        else if (category === 'analysis') {
-            if (newExamData.sessionId === '' || newExamData.analysisClass === '') {
-                toast.error("Please fill all the required data");
             }
         }
 
@@ -231,14 +192,10 @@ export default function Exams() {
                     },
                     body: JSON.stringify({
                         sessionId: newExamData.sessionId,
-                        classes: newExamData.classes,
-                        subject: newExamData.subject,
                         name: newExamData.name,
                         desc: newExamData.desc,
-                        minMarks: newExamData.minMarks,
-                        maxMarks: newExamData.maxMarks,
-                        date: newExamData.date
-                    }),
+                        exams: newExamData.items
+                    })
                 });
 
                 const data = await res.json();
@@ -263,13 +220,15 @@ export default function Exams() {
         }
     }
 
-    const handleEdit = (examData: ExamDBData) => {
+    const handleEdit = (examData: ExamDBData, editExamInfo: boolean) => {
         setEnableEdit(true);
+        setEditExamInfo(editExamInfo);
         setSelectedExamData(examData);
     }
 
-    const handleDelete = (examData: ExamDBData) => {
+    const handleDelete = (examData: ExamDBData, deleteAllExams: boolean = false) => {
         setEnableDelete(true);
+        setDeleteAllExams(deleteAllExams);
         setSelectedExamData(examData);
     }
 
@@ -282,10 +241,8 @@ export default function Exams() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    examId: examData.id,
-                    sessionId: examData.sessionId,
-                    classId: newExamData.analysisClass
-                }),
+                    examId: examData.id
+                })
             });
 
             const data = await res.json();
@@ -305,6 +262,40 @@ export default function Exams() {
             setPageLoading(false);
         }
     }
+
+    const addItem = () => {
+        setNewExamData(prev => ({
+            ...prev,
+            items: [
+                ...prev.items,
+                {
+                    classId: "",
+                    subjectId: "",
+                    date: "",
+                    minMarks: "",
+                    maxMarks: ""
+                }
+            ]
+        }));
+    };
+
+    const handleItemChange = (index: number, field: keyof ExamItem, value: string) => {
+        const updatedItems = [...newExamData.items];
+        updatedItems[index][field] = value;
+
+        setNewExamData(prev => ({
+            ...prev,
+            items: updatedItems
+        }));
+    };
+
+    const groupedExams = examsData?.reduce((acc, exam) => {
+        if (!acc[exam.uniqueExamId]) {
+            acc[exam.uniqueExamId] = [];
+        }
+        acc[exam.uniqueExamId].push(exam);
+        return acc;
+    }, {} as Record<string, ExamDBData[]>);
 
     const loading = pageLoading || sessionsLoading || classesLoading || subjectsLoading;
     if (loading) {
@@ -327,34 +318,33 @@ export default function Exams() {
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
                 <form onSubmit={handleSubmit}>
-                    <FormSection title={category === 'add' ? `Enter Exam Details` : category === 'view' ? 'View Exams' : 'Analyze Marks'} icon={category === 'add' ? <BadgePlus /> : category === 'view' ? <BookOpenCheck /> : <SquareSigma />} margin={false}>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-5">
+                    <FormSection title={category === 'add' ? `Enter Exam Details` : category === 'view' ? 'View Exams' : 'Analyze Marks'} icon={category === 'add' ? <BadgePlus /> : category === 'view' ? <BookOpenCheck /> : <SquareSigma />} margin={true}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-5">
                             <SelectField label="Session" name="sessionId" value={newExamData.sessionId} onChange={handleChange} options={sessions} required />
-                            {category !== 'analysis' && (
-                                <MultiSelectField label="Class" name="class" value={newExamData.classes} onChange={(values) => handleMultiSelectChange("classes", values)} options={classes} required />
-                            )}
-
                             {category === 'add' && (
-                                <SelectField label="Subject" name="subject" value={newExamData.subject} onChange={handleChange} options={subjects} required disabled={newExamData.classes.length === 0} />
-                            )}
-
-                            {category === 'analysis' && (
-                                <>
-                                    <SelectField label="Class" name="analysisClass" value={newExamData.analysisClass} onChange={handleChange} options={classes} required disabled={newExamData.sessionId === ''} />
-                                </>
-
+                                <InputField label="Exam Name" type="text" name="name" value={newExamData.name} onChange={handleChange} maxLength={80} required />
                             )}
                         </div>
                         {category === 'add' && (
+                            <TextAreaField label="Exam Description" name="desc" value={newExamData.desc} onChange={handleChange} maxLength={200} />
+                        )}
+                        {category === 'add' && (
                             <>
-                                <InputField label="Exam Name" type="text" name="name" value={newExamData.name} onChange={handleChange} maxLength={80} required />
-                                <div className="mt-5">
-                                    <TextAreaField label="Exam Description" name="desc" value={newExamData.desc} onChange={handleChange} maxLength={200} />
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mt-5">
-                                    <InputField label="Minimum Marks" type="text" name="minMarks" value={newExamData.minMarks} onChange={handleChange} required />
-                                    <InputField label="Maximum Marks" type="text" name="maxMarks" value={newExamData.maxMarks} onChange={handleChange} required />
-                                    <InputField label="Date" name="date" type="date" value={newExamData.date} onChange={handleChange} required />
+                                {newExamData.items.map((item, index) => (
+                                    <div key={index} className="border border-gray-200 rounded-xl mt-4">
+                                        <p className="p-2 font-semibold font-sans">Exam: {index + 1}</p>
+                                        <hr className="text-gray-200" />
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
+                                            <SelectField label="Class" name="class" value={item.classId} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "classId", e.target.value)} options={classes} required />
+                                            <SelectField label="Subject" name="subject" value={item.subjectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleItemChange(index, "subjectId", e.target.value)} options={subjects} required disabled={item.classId === ''} />
+                                            <InputField label="Date" name="date" type="date" value={item.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "date", e.target.value)} required />
+                                            <InputField label="Min Marks" name="minMarks" value={item.minMarks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "minMarks", e.target.value)} required />
+                                            <InputField label="Max Marks" name="maxMarks" value={item.maxMarks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "maxMarks", e.target.value)} required />
+                                        </div>
+                                    </div>
+                                ))}
+                                <div className="mt-2">
+                                    <Button type="button" text="Add More" onClick={addItem} icon={<ListPlus />} setGreen />
                                 </div>
                             </>
                         )}
@@ -385,36 +375,68 @@ export default function Exams() {
                                 </thead>
 
                                 <tbody className="text-gray-600 text-sm">
-                                    {examsData.map((exam, index) => (
-                                        <tr
-                                            key={index}
-                                            className="border-t hover:bg-gray-50 transition"
-                                        >
-                                            <td className="px-4 py-3">{exam.sessionId}</td>
-                                            <td className="px-4 py-3">{exam.classId}</td>
-                                            <td className="px-4 py-3 font-medium">{exam.name}</td>
-                                            <td className="px-4 py-3">{exam.description}</td>
-                                            <td className="px-4 py-3">{exam.minMarks}</td>
-                                            <td className="px-4 py-3">{exam.maxMarks}</td>
-                                            <td className="px-4 py-3">{exam.subjectId}</td>
-                                            <td className="px-4 py-3">
-                                                {new Date(exam.date).toLocaleDateString()}
-                                            </td>
-                                            {category === 'view' && (
-                                                <td className="px-4 py-3">
-                                                    <span className="flex gap-2">
-                                                        <Edit onClick={() => handleEdit(exam)} size={16} className="cursor-pointer hover:text-yellow-600" />
-                                                        <Delete onClick={() => handleDelete(exam)} size={16} className="cursor-pointer hover:text-red-500" />
-                                                    </span>
-                                                </td>
-                                            )}
-                                            {category === 'analysis' && (
-                                                <td className="px-4 py-3">
-                                                    <ChevronRight onClick={() => handleMarksAnalysis(exam)} size={16} className="cursor-pointer hover:text-green-500" />
-                                                </td>
-                                            )}
-                                        </tr>
-                                    ))}
+                                    {groupedExams &&
+                                        Object.entries(groupedExams).map(([groupId, exams], index) => {
+                                            const first = exams[0];
+
+                                            return (
+                                                <Fragment key={groupId}>
+                                                    {/* Group Header Row */}
+                                                    <tr className="bg-gray-200 font-semibold">
+                                                        <td className="px-4 py-3">{first.sessionId}</td>
+                                                        <td className="px-4 py-3">-</td>
+                                                        <td className="px-4 py-3">
+                                                            {first.name}
+                                                        </td>
+                                                        <td className="px-4 py-3">{first.description}</td>
+                                                        <td className="px-4 py-3">-</td>
+                                                        <td className="px-4 py-3">-</td>
+                                                        <td className="px-4 py-3">-</td>
+                                                        <td className="px-4 py-3">-</td>
+                                                        <td className="px-4 py-3">
+                                                            {category === 'view' && (
+                                                                <span className="flex gap-2">
+                                                                    <Edit onClick={() => handleEdit(first, true)} size={16} />
+                                                                    <Delete onClick={() => handleDelete(first, true)} size={16} />
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td></td>
+                                                    </tr>
+
+                                                    {/* Child Rows */}
+                                                    {exams.map((exam, index) => (
+                                                        <tr key={index} className="border-t hover:bg-gray-50">
+                                                            <td className="px-4 py-3"></td>
+                                                            <td className="px-4 py-3">{exam.classId}</td>
+                                                            <td className="px-4 py-3"></td>
+                                                            <td className="px-4 py-3"></td>
+                                                            <td className="px-4 py-3">{exam.minMarks}</td>
+                                                            <td className="px-4 py-3">{exam.maxMarks}</td>
+                                                            <td className="px-4 py-3">{exam.subjectId}</td>
+                                                            <td className="px-4 py-3">
+                                                                {new Date(exam.date).toLocaleDateString()}
+                                                            </td>
+
+                                                            {category === 'view' && (
+                                                                <td className="px-4 py-3">
+                                                                    <span className="flex gap-2">
+                                                                        <Edit onClick={() => handleEdit(exam, false)} size={16} />
+                                                                        <Delete onClick={() => handleDelete(exam)} size={16} />
+                                                                    </span>
+                                                                </td>
+                                                            )}
+
+                                                            {category === 'analysis' && (
+                                                                <td className="px-4 py-3">
+                                                                    <ChevronRight onClick={() => handleMarksAnalysis(exam)} size={16} />
+                                                                </td>
+                                                            )}
+                                                        </tr>
+                                                    ))}
+                                                </Fragment>
+                                            );
+                                        })}
                                 </tbody>
                             </table>
                         </div>
@@ -423,11 +445,11 @@ export default function Exams() {
             )}
 
             {enableEdit && selectedExamData && (
-                <ExamUpdateDialog title="Edit Exam" selectedExamData={selectedExamData} setSelectedExamData={setSelectedExamData} setEnableEdit={setEnableEdit} setPageLoading={setPageLoading} getExamsData={getExamsData} />
+                <ExamUpdateDialog title="Edit Exam" selectedExamData={selectedExamData} setSelectedExamData={setSelectedExamData} setEnableEdit={setEnableEdit} setPageLoading={setPageLoading} getExamsData={getExamsData} editExamInfo={editExamInfo} />
             )}
 
             {enableDelete && selectedExamData && (
-                <ExamDeleteDialog title="Delete Exam" selectedExamData={selectedExamData} setSelectedExamData={setSelectedExamData} setEnableDelete={setEnableDelete} setPageLoading={setPageLoading} getExamsData={getExamsData} />
+                <ExamDeleteDialog title="Delete Exam" selectedExamData={selectedExamData} setSelectedExamData={setSelectedExamData} setEnableDelete={setEnableDelete} setPageLoading={setPageLoading} getExamsData={getExamsData} deleteAllExams={deleteAllExams} />
             )}
         </div>
     )

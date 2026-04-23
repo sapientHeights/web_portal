@@ -16,6 +16,7 @@ type ExamDBData = {
     description: string;
     minMarks: string;
     maxMarks: string;
+    uniqueExamId: string;
 }
 
 type Props = {
@@ -25,9 +26,10 @@ type Props = {
     setEnableEdit: React.Dispatch<React.SetStateAction<boolean>>;
     setPageLoading: React.Dispatch<React.SetStateAction<boolean>>;
     getExamsData: () => void;
+    editExamInfo: boolean
 }
 
-export default function ExamUpdateDialog({ title, selectedExamData, setSelectedExamData, setEnableEdit, setPageLoading, getExamsData }: Props) {
+export default function ExamUpdateDialog({ title, selectedExamData, setSelectedExamData, setEnableEdit, setPageLoading, getExamsData, editExamInfo }: Props) {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
 
@@ -53,10 +55,16 @@ export default function ExamUpdateDialog({ title, selectedExamData, setSelectedE
             return;
         }
 
+        if(Number(selectedExamData.minMarks) > Number(selectedExamData.maxMarks)){
+            toast.error("Please enter valid exam marks");
+            return;
+        }
+
         setPageLoading(true);
 
         const dataToSend = {
-            examData: selectedExamData
+            examData: selectedExamData,
+            editExamInfo: editExamInfo
         }
 
         try {
@@ -94,19 +102,23 @@ export default function ExamUpdateDialog({ title, selectedExamData, setSelectedE
                     <FormSection title={title} icon={<Settings2 />} margin={false}>
                         <div className="grid grid-cols-1 gap-5">
                             <div className="grid grid-cols-2 gap-5">
-                                <InputField label="Session Id" name="sessionId" value={selectedExamData.sessionId} onChange={() => { }} disabled />
-                                <InputField label="Class" name="classId" value={selectedExamData.classId} onChange={() => { }} disabled />
+                                <InputField label="Session Id" name="sessionId" value={selectedExamData.sessionId} onChange={() => { }} disabled={!editExamInfo} />
+                                <InputField label="Name" name="name" value={selectedExamData.name} onChange={handleChange} maxLength={80} disabled={!editExamInfo} />
                             </div>
-                            <div className="grid grid-cols-2 gap-5">
-                                <InputField label="Subject" name="subjectId" value={selectedExamData.subjectId} onChange={() => {}} disabled />
-                                <InputField type="date" label="Date" name="date" value={selectedExamData.date} onChange={() => { }} disabled />
-                            </div>
-                            <InputField label="Name" name="name" value={selectedExamData.name} onChange={handleChange} maxLength={80} required />
-                            <InputField label="Description" name="description" value={selectedExamData.description} onChange={handleChange} maxLength={200} />
-                            <div className="grid grid-cols-2 gap-5">
-                                <InputField label="Min Marks" name="minMarks" value={selectedExamData.minMarks} onChange={handleChange} required />
-                                <InputField label="Max Marks" name="maxMarks" value={selectedExamData.maxMarks} onChange={handleChange} required />
-                            </div>
+                            <InputField label="Description" name="description" value={selectedExamData.description} onChange={handleChange} maxLength={200} disabled={!editExamInfo} />
+                            {!editExamInfo && (
+                                <>
+                                <div className="grid grid-cols-2 gap-5">
+                                    <InputField label="Subject" name="subjectId" value={selectedExamData.subjectId} onChange={() => {}} disabled />
+                                    <InputField label="Class" name="classId" value={selectedExamData.classId} onChange={() => { }} disabled />
+                                </div>
+                                <div className="grid grid-cols-3 gap-5">
+                                    <InputField type="date" label="Date" name="date" value={selectedExamData.date} onChange={() => { }} />
+                                    <InputField label="Min Marks" name="minMarks" value={selectedExamData.minMarks} onChange={handleChange} required />
+                                    <InputField label="Max Marks" name="maxMarks" value={selectedExamData.maxMarks} onChange={handleChange} required />
+                                </div>
+                                </>
+                            )}
                         </div>
 
                         <FormFooterActions primaryLabel="Update" cancel={handleCancel} />

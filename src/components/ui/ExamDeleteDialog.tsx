@@ -14,6 +14,7 @@ type ExamDBData = {
     description: string;
     minMarks: string;
     maxMarks: string;
+    uniqueExamId: string;
 }
 
 type Props = {
@@ -23,9 +24,10 @@ type Props = {
     setEnableDelete: React.Dispatch<React.SetStateAction<boolean>>;
     setPageLoading: React.Dispatch<React.SetStateAction<boolean>>;
     getExamsData: () => void;
+    deleteAllExams: boolean;
 }
 
-export default function ExamDeleteDialog({ title, selectedExamData, setSelectedExamData, setEnableDelete, setPageLoading, getExamsData }: Props) {
+export default function ExamDeleteDialog({ title, selectedExamData, setSelectedExamData, setEnableDelete, setPageLoading, getExamsData, deleteAllExams }: Props) {
     const handleCancel = () => {
         setEnableDelete(false);
         setSelectedExamData(undefined);
@@ -77,20 +79,33 @@ export default function ExamDeleteDialog({ title, selectedExamData, setSelectedE
                             <p className="font-sans">Do you want to delete the following Exam?</p>
                         </div>
                         <div className="grid grid-cols-1 gap-5">
-                            <div className="grid grid-cols-2 gap-5">
-                                <InputField label="Session Id" name="sessionId" value={selectedExamData.sessionId} onChange={() => { }} disabled />
-                                <InputField label="Class" name="classId" value={selectedExamData.classId} onChange={() => { }} disabled />
-                            </div>
-                            <div className="grid grid-cols-2 gap-5">
-                                <InputField label="Subject" name="subjectId" value={selectedExamData.subjectId} onChange={() => { }} disabled />
-                                <InputField type="date" label="Date" name="date" value={selectedExamData.date} onChange={() => { }} disabled />
-                            </div>
-                            <InputField label="Name" name="name" value={selectedExamData.name} onChange={() => { }} disabled />
-                            <InputField label="Description" name="description" value={selectedExamData.description} onChange={() => { }} disabled />
-                            <div className="grid grid-cols-2 gap-5">
-                                <InputField label="Min Marks" name="minMarks" value={selectedExamData.minMarks} onChange={() => { }} disabled />
-                                <InputField label="Max Marks" name="maxMarks" value={selectedExamData.maxMarks} onChange={() => { }} disabled />
-                            </div>
+                            {deleteAllExams && (
+                                <>
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <InputField label="Session Id" name="sessionId" value={selectedExamData.sessionId} onChange={() => { }} disabled />
+                                        <InputField label="Name" name="name" value={selectedExamData.name} onChange={() => { }} disabled />
+                                    </div>
+                                    <InputField label="Description" name="description" value={selectedExamData.description} onChange={() => { }} disabled />
+                                </>
+                            )}
+                            {!deleteAllExams && (
+                                <>
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <InputField label="Session Id" name="sessionId" value={selectedExamData.sessionId} onChange={() => { }} disabled />
+                                        <InputField label="Class" name="classId" value={selectedExamData.classId} onChange={() => { }} disabled />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <InputField label="Subject" name="subjectId" value={selectedExamData.subjectId} onChange={() => { }} disabled />
+                                        <InputField type="date" label="Date" name="date" value={selectedExamData.date} onChange={() => { }} disabled />
+                                    </div>
+                                    <InputField label="Name" name="name" value={selectedExamData.name} onChange={() => { }} disabled />
+                                    <InputField label="Description" name="description" value={selectedExamData.description} onChange={() => { }} disabled />
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <InputField label="Min Marks" name="minMarks" value={selectedExamData.minMarks} onChange={() => { }} disabled />
+                                        <InputField label="Max Marks" name="maxMarks" value={selectedExamData.maxMarks} onChange={() => { }} disabled />
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <FormFooterActions primaryLabel="Delete" cancel={handleCancel} />
