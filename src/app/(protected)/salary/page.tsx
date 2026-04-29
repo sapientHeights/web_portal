@@ -5,13 +5,16 @@ import FullPageLoader from "@/components/ui/FullPageLoader";
 import Header from "@/components/ui/Header";
 import UserInfo from "@/components/ui/UserInfo";
 import { useUser } from "@/context/UserContext";
-import { IndianRupee, Sheet, StepBack, Wallet } from "lucide-react";
+import { CalendarFold, FileClock, IndianRupee, Sheet, StepBack, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import InputField from "@/components/ui/InputField";
 import SheetAnalysis from "@/components/ui/SheetAnalysis";
 import FormSection from "@/components/ui/FormSection";
+import LeavesData from "@/components/ui/LeavesData";
+import { useSessions } from "@/hooks/useSessions";
+import LeavesHistory from "@/components/ui/LeavesHistory";
 
 type BasicSalaryData = {
     id: string;
@@ -38,6 +41,7 @@ export default function Salary() {
     const [category, setCategory] = useState('salary');
 
     const [basicSalaryData, setBasicSalaryData] = useState<BasicSalaryData[] | null>(null);
+    const { sessions, isLoading: sessionsLoading, activeSession } = useSessions();
 
     const goBack = () => {
         setPageLoading(true);
@@ -147,7 +151,8 @@ export default function Salary() {
         });
     };
 
-    if (pageLoading) return <FullPageLoader />;
+    const loading = pageLoading || sessionsLoading;
+    if (loading) return <FullPageLoader />;
 
     return (
         <div className="min-h-screen bg-linear-to-br from-blue-100 to-blue-200 p-6">
@@ -158,8 +163,10 @@ export default function Salary() {
             <Header title='Sapient Heights' info='Manage salary for Sapient Heights' />
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <Button icon={<IndianRupee />} text="Salary Data" onClick={() => handleCategoryClick('salary')} setGreen={category === 'salary'} />
+                    <Button icon={<CalendarFold />} text="Leave Data" onClick={() => handleCategoryClick('leavesData')} setGreen={category === 'leavesData'} />
+                    <Button icon={<FileClock />} text="Leave History" onClick={() => handleCategoryClick('leavesHistory')} setGreen={category === 'leavesHistory'} />
                     <Button icon={<Sheet />} text="Sheet Analysis" onClick={() => handleCategoryClick('sheet')} setGreen={category === 'sheet'} />
                 </div>
             </div>
@@ -175,6 +182,7 @@ export default function Salary() {
                                             <th className="px-6 py-4">S.No.</th>
                                             <th className="px-6 py-4">ID</th>
                                             <th className="px-6 py-4">Name</th>
+                                            <th className="px-6 py-4">Emp Code</th>
                                             <th className="px-1 py-4">Basic Salary</th>
                                             <th className="px-1 py-4">Installment</th>
                                         </tr>
@@ -185,6 +193,7 @@ export default function Salary() {
                                                 <td className="px-6 py-4">{index + 1}</td>
                                                 <td className="px-6 py-4">{data.tId}</td>
                                                 <td className="px-6 py-4">{data.teacherName}</td>
+                                                <td className="px-6 py-4">{data.empId}</td>
                                                 <td className="px-6 py-4">
                                                     <InputField value={data.salary.toString()} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange(index, "salary", e.target.value)} label="" name="salary" />
                                                 </td>
@@ -204,6 +213,14 @@ export default function Salary() {
                         </FormSection>
                     </form>
                 </div>
+            )}
+
+            {category === 'leavesData' && (
+                <LeavesData sessions={sessions} activeSession={activeSession} />
+            )}
+
+            {category === 'leavesHistory' && (
+                <LeavesHistory sessions={sessions} activeSession={activeSession} />
             )}
 
             {category === 'sheet' && (
