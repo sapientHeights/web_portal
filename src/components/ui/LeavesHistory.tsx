@@ -30,7 +30,7 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
     const [action, setAction] = useState('');
     const [empLeavesHistory, setEmpLeavesHistory] = useState<LeaveHistory[]>(leavesHistory);
     const [showDialog, setShowDialog] = useState(false);
-    const [newLeaveHistory, setNewLeaveHistory] = useState<LeaveHistory>({ id: '', sessionId: '', tId: '', startDate: '', endDate: '', type: '', teacherName: '', empId: '' });
+    const [newLeaveHistory, setNewLeaveHistory] = useState<LeaveHistory>({ id: '', sessionId: '', tId: '', startDate: '', endDate: '', type: 'CL', teacherName: '', empId: '' });
     const [leavesHistoryFound, setLeavesHistoryFound] = useState(false);
 
     const uniqueTeachers = Array.from(
@@ -88,7 +88,7 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
                 tId: empData.tId,
                 startDate: '',
                 endDate: '',
-                type: '',
+                type: 'CL',
                 teacherName: empData.teacherName,
                 empId: empData.empId
             });
@@ -227,7 +227,7 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
                                         <div className="grid grid-col-1 sm:grid-cols-3 gap-10 mt-10">
                                             <InputField type="date" label="Start Date" name="startDate" value={newLeaveHistory.startDate} onChange={handleNewDataChange} required />
                                             <InputField type="date" label="End Date" name="endDate" value={newLeaveHistory.endDate} onChange={handleNewDataChange} required />
-                                            <SelectField label="Type" name="type" value={newLeaveHistory.type} onChange={handleNewDataChange} options={['CL', 'LWP']} required />
+                                            <SelectField label="Type" name="type" value={newLeaveHistory.type} onChange={handleNewDataChange} options={['CL', 'LWP']} required disabled />
                                         </div>
                                     </FormSection>
                                     <FormFooterActions primaryLabel="Add" cancel={() => setShowDialog(false)} />
@@ -270,7 +270,7 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
                                             ))}
                                             {!leavesHistoryFound && (
                                                 <tr>
-                                                    <td colSpan={3} className="px-4 py-3">
+                                                    <td colSpan={4} className="px-4 py-3">
                                                         <NoDataSection />
                                                     </td>
                                                 </tr>

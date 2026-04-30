@@ -12,9 +12,7 @@ type LeaveData = {
     sessionId: string;
     tId: string;
     maxCLs: number;
-    maxLWPs: number;
     usedCLs: number;
-    usedLWPs: number;
     teacherName: string;
     empId: string;
 }
@@ -140,9 +138,7 @@ export default function LeavesData({ sessions, activeSession }: Props) {
                                         <th className="px-6 py-4">Name</th>
                                         <th className="px-6 py-4">Emp Code</th>
                                         <th className="px-1 py-4">Max CL</th>
-                                        <th className="px-1 py-4">Max LWP</th>
                                         <th className="px-1 py-4">Used CL</th>
-                                        <th className="px-1 py-4">Used LWP</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 text-center">
@@ -171,11 +167,7 @@ export default function LeavesData({ sessions, activeSession }: Props) {
                                                 <td className="px-6 py-4">
                                                     <InputField value={data.maxCLs.toString()} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange(index, "maxCLs", e.target.value)} label="" name="maxCLs" />
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <InputField value={data.maxLWPs.toString()} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange(index, "maxLWPs", e.target.value)} label="" name="maxLWPs" />
-                                                </td>
                                                 <td className="px-6 py-4">{data.usedCLs}</td>
-                                                <td className="px-6 py-4">{data.usedLWPs}</td>
                                             </tr>
                                         ))
                                     )}
