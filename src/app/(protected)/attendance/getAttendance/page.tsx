@@ -114,7 +114,7 @@ export default function GetAttendance() {
             const data = await res.json();
 
             if (!data.error) {
-                const sortedData = data.attData.sort((a: AttData, b: AttData) => a.studentName.localeCompare(b.studentName));
+                const sortedData = data.attData.sort((a: AttData, b: AttData) => (a.studentName ?? "").localeCompare((b.studentName ?? "")));
                 setAttData(sortedData);
                 calTodayStatsData(sortedData);
                 setNoData(false);
@@ -301,7 +301,7 @@ export default function GetAttendance() {
     const filteredStats = useMemo(() => {
         return studentStats.filter(s => {
             return (
-                s.name.toLowerCase().includes(search.toLowerCase())
+                (s.name ?? "").toLowerCase().includes(search.toLowerCase())
             );
         });
     }, [studentStats, search]);

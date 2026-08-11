@@ -46,13 +46,14 @@ export default function ShowObs({ sessionId, classId, section }: Props) {
                 setNoData(true);
             }
             else {
-                const sortedData = data.obsData.sort((a:ObsData, b:ObsData) => a.studentName.localeCompare(b.studentName));
+                const sortedData = data.obsData.sort((a:ObsData, b:ObsData) => (a.studentName ?? "").localeCompare((b.studentName ?? "")));
                 setObsData(sortedData);
                 setFilteredObsData(sortedData);
             }
         }
         catch (err) {
             setNoData(true);
+            console.error(err);
             toast.error("Some error occurred");
         }
         finally {
@@ -70,7 +71,7 @@ export default function ShowObs({ sessionId, classId, section }: Props) {
             return;
         }
 
-        const filteredRecords = obsData.filter(data => data.studentName.toLowerCase().includes(searchTerm.toLowerCase()) || data.teacherName.toLowerCase().includes(searchTerm.toLowerCase()));
+        const filteredRecords = obsData.filter(data => (data.studentName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) || (data.teacherName ?? "").toLowerCase().includes(searchTerm.toLowerCase()));
         setFilteredObsData(filteredRecords);
 
     }, [searchTerm])
