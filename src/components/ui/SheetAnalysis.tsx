@@ -30,6 +30,11 @@ const DEFAULT_PUNCH_TIME = "07:25";
 // Every 3 "Late" days converts to 1 Half Day (INT division).
 const LATE_DAYS_PER_HALF_DAY = 3;
 
+const MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+];
+
 type TapInOut = {
     tapInOutExcel: File | null;
 };
@@ -170,6 +175,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
     const [sheetYear, setSheetYear] = useState('');
 
     const [showSaveModal, setShowSaveModal] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, name: string) => {
         const file = e.target.files?.[0];
@@ -206,8 +212,16 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
         setPunchTimeData(updatedPunchData);
     }
 
+    const TIME_PATTERN = /^\d{1,2}:\d{2}$/;
+
+    const isValidTimeString = (time: string) => TIME_PATTERN.test(String(time || "").trim());
+
+    // Returns NaN for anything that isn't a strict "HH:MM" string, instead
+    // of silently producing 0/garbage - callers must check for NaN before
+    // trusting the result.
     const timeToMinutes = (time: string) => {
         if (!time) return 0;
+        if (!isValidTimeString(time)) return NaN;
         const [h, m] = time.split(":").map(Number);
         return h * 60 + m;
     };
@@ -217,6 +231,64 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
         const h = Math.floor(minutes / 60);
         const m = minutes % 60;
         return `${h}:${m.toString().padStart(2, "0")}`;
+    };
+
+    // Excel stores time-of-day as a fraction of a day (e.g. 7:20 AM -> 0.30555...).
+    // When a cell is formatted as a time/number (rather than text), xlsx's
+    // header:1 parsing returns that raw fraction instead of "07:20".
+    const excelSerialToTime = (serial: number): string => {
+        const totalMinutes = Math.round(serial * 24 * 60);
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    };
+
+    // Handles times that were manually typed with a decimal point instead
+    // of a colon, e.g. "7.19" meant as 07:19, or "14.2" meant as 14:20.
+    // The digits after the decimal point are read LITERALLY as minutes
+    // (not scaled as a fraction) - a single trailing digit is padded with
+    // a zero (".2" -> ":20", not ":02" and not ":12"). Returns null if the
+    // value doesn't look like this pattern, or the resulting time is out
+    // of range (so we never silently invent a bogus time).
+    const decimalHourMinuteToTime = (raw: number | string): string | null => {
+        const match = String(raw).trim().match(/^(\d{1,2})\.(\d{1,2})$/);
+        if (!match) return null;
+
+        const hours = Number(match[1]);
+        const minutes = Number(match[2].length === 1 ? match[2] + "0" : match[2]);
+
+        if (hours > 23 || minutes > 59) return null;
+        return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+    };
+
+    // Normalizes a raw cell value that is expected to represent a time
+    // (In/Out/Total columns) into a clean "HH:MM" string, whether the
+    // sheet stored that particular cell as text ("07:20"), as a numeric
+    // Excel time serial (0.305555... for 07:20), or as a manually-typed
+    // decimal like "7.19"/"14.2" meaning 07:19/14:20. Falls back to the
+    // raw trimmed string if none of these shapes match, rather than
+    // guessing.
+    const normalizeTimeCell = (val: string | number | boolean | null | undefined): string => {
+        if (val === null || val === undefined || val === "") return "";
+
+        if (typeof val === "number") {
+            if (val >= 0 && val < 1) return excelSerialToTime(val);
+            return decimalHourMinuteToTime(val) ?? String(val);
+        }
+
+        const str = String(val).trim();
+        if (str === "") return "";
+
+        if (isValidTimeString(str)) return str;
+
+        const asNumber = Number(str);
+        if (!Number.isNaN(asNumber)) {
+            if (asNumber >= 0 && asNumber < 1) return excelSerialToTime(asNumber);
+            const decimalTime = decimalHourMinuteToTime(str);
+            if (decimalTime) return decimalTime;
+        }
+
+        return str;
     };
 
     // Calendar days in the selected month/year, e.g. July -> 31.
@@ -236,12 +308,33 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
         return new Date(year, month - 1, dayNum);
     };
 
+    // Parses a "YYYY-MM-DD" (optionally with a time part appended) date
+    // string into a LOCAL-midnight Date, matching how getDateForDay builds
+    // its date. Plain `new Date("2026-04-28")` parses as UTC midnight,
+    // which is a different instant from local midnight in any timezone
+    // ahead of UTC (e.g. IST) - comparing that against a locally-built
+    // Date would silently miss same-day matches. Returns null (rather
+    // than an incorrect guess) if the string doesn't match the expected
+    // shape.
+    const parseLocalDate = (dateStr: string): Date | null => {
+        if (!dateStr) return null;
+        const datePart = String(dateStr).trim().split(/[T ]/)[0];
+        const match = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return null;
+        const [, y, m, d] = match;
+        return new Date(Number(y), Number(m) - 1, Number(d));
+    };
+
     const isApprovedCLDay = (empCode: string, date: Date | null, leaves: LeaveData[]) => {
         if (!date) return false;
         return leaves.some(l => {
             if (l.empId != empCode || l.type !== "CL") return false;
-            const start = new Date(l.startDate);
-            const end = new Date(l.endDate);
+            const start = parseLocalDate(l.startDate);
+            const end = parseLocalDate(l.endDate);
+            if (!start || !end) {
+                console.warn(`Unparseable CL date range for Emp ${l.empId}: "${l.startDate}" - "${l.endDate}"`);
+                return false;
+            }
             return date >= start && date <= end;
         });
     };
@@ -314,7 +407,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
         setPunchTimeInput(true);
     }
 
-    const getMaxLeavesData = async () => {
+    const getMaxLeavesData = async (): Promise<MaxLeaveData[]> => {
         setPageLoading(true);
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/getMaxLeavesBySess.php`, {
@@ -330,22 +423,27 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
             const data = await res.json();
             if (data.error) {
                 toast.error("Some error occurred");
+                return [];
             }
             else {
                 if (!data.noData) {
                     setEmpMaxLEavesData(data.leavesData);
+                    return data.leavesData;
                 }
+                setEmpMaxLEavesData([]);
+                return [];
             }
         }
         catch (err) {
             toast.error("Some error occurred");
+            return [];
         }
         finally {
             setPageLoading(false);
         }
     }
 
-    const getLeavesData = async () => {
+    const getLeavesData = async (): Promise<LeaveData[]> => {
         setPageLoading(true);
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/getLeavesDataBySess.php`, {
@@ -361,15 +459,20 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
             const data = await res.json();
             if (data.error) {
                 toast.error("Some error occurred");
+                return [];
             }
             else {
                 if (!data.noData) {
                     setEmpLeavesData(data.leavesData);
+                    return data.leavesData;
                 }
+                setEmpLeavesData([]);
+                return [];
             }
         }
         catch (err) {
             toast.error("Some error occurred");
+            return [];
         }
         finally {
             setPageLoading(false);
@@ -384,6 +487,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
      *   3. Falls inside an approved CL    -> CL
      *   4. Otherwise, by InTime vs the day's expected punch time:
      *        no punch                    -> AB
+     *        unparseable InTime          -> AB (logged - bad source data, never guessed as HD)
      *        InTime <= punchTime         -> P
      *        punchTime < InTime <= +15   -> L
      *        InTime > punchTime + 15     -> HD
@@ -408,6 +512,11 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
 
         if (!inTime) return "AB";
 
+        if (!isValidTimeString(inTime)) {
+            console.warn(`Unparseable InTime "${inTime}" for Emp ${empCode}, day ${day} - treating as Absent instead of guessing.`);
+            return "AB";
+        }
+
         const diff = timeToMinutes(inTime) - timeToMinutes(punchTime);
         if (diff <= 0) return "P";
         if (diff <= LATE_GRACE_MINUTES) return "L";
@@ -424,8 +533,12 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
             return;
         }
 
-        await getMaxLeavesData();
-        await getLeavesData();
+        // Capture the returned arrays directly rather than reading
+        // empMaxLeavesData/empLeavesData state right after - state setters
+        // don't take effect until the next render, so reading the state
+        // variable here would still see the value from before this click.
+        const freshMaxLeavesData = await getMaxLeavesData();
+        const freshLeavesData = await getLeavesData();
 
         try {
             const data = await file.arrayBuffer();
@@ -486,6 +599,14 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                             return val !== null && val !== undefined ? String(val) : "";
                         });
 
+                    // In/Out/Total cells can come through as either a plain
+                    // "HH:MM" string or a raw Excel time-serial number
+                    // (e.g. 0.305555... for 07:20) depending on how that
+                    // individual cell was formatted in the sheet - normalize
+                    // both shapes into a clean "HH:MM" string.
+                    const getTimeRowValues = (sourceRow: ExcelRow): string[] =>
+                        statusIndices.map(idx => normalizeTimeCell(sourceRow[idx]));
+
                     const punchTime: string[] = [];
                     sheetDays.forEach((day) => {
                         const time = punchTimeData.find(d => d.sheetDay === day)?.punchTime;
@@ -499,9 +620,9 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                         punchTime: punchTime,
                         sheetStatus: getRowValues(statusRow).slice(1), // reference only
                         calculatedStatus: [],
-                        inTime: getRowValues(inRow).slice(1),
-                        outTime: getRowValues(outRow).slice(1),
-                        total: getRowValues(totalRow).slice(1),
+                        inTime: getTimeRowValues(inRow).slice(1),
+                        outTime: getTimeRowValues(outRow).slice(1),
+                        total: getTimeRowValues(totalRow).slice(1),
                         lateBy: [],
                         totalLateDuration: '00:00',
                         totalLateCount: 0,
@@ -551,7 +672,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                         emp.inTime[i],
                         emp.punchTime[i],
                         emp.empCode,
-                        empLeavesData
+                        freshLeavesData
                     );
 
                     switch (status) {
@@ -600,7 +721,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                 // MaxLeaveData, we can't distinguish a running yearly
                 // balance from a month-specific one - this is a best
                 // effort display based on the data currently exposed.
-                const empMax = empMaxLeavesData.find(e => e.empId == emp.empCode);
+                const empMax = freshMaxLeavesData.find(e => e.empId == emp.empCode);
                 const monthlyEarnedCL = 1;
 
                 emp.hasCLData = !!empMax;
@@ -780,6 +901,69 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
         }
         setShowSaveModal(true);
     }
+
+    const handleExportToExcel = async () => {
+        if (employees.length === 0) {
+            toast.error("No data to export");
+            return;
+        }
+
+        const dataToExport = employees.map((emp) => ({
+            name: emp.name,
+            empCode: emp.empCode,
+            totalDaysInMonth: String(emp.workingDays),
+            present: String(emp.totalPresentDays),
+            totalLate: String(emp.totalLateCount),
+            totalHD: String(emp.totalHalfDay),
+            absent: String(emp.totalAbsentDays),
+            totalWO: String(emp.weeklyOffs),
+            totalPH: String(emp.publicHolidays),
+            approvedCL: String(emp.approvedCLDays),
+            payableDays: String(emp.paidDays),
+            basicSalary: String(emp.monthlySalary),
+            halfDayDeduction: String(emp.halfDayDeduction.toFixed(2)),
+            absentDeduction: String(emp.absentDeduction.toFixed(2)),
+            totalDeduction: String(emp.totalDeduction),
+            netSalary: String(emp.netSalary),
+        }));
+
+        setIsExporting(true);
+        try {
+            const res = await fetch("/api/exportSalaryData", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ data: dataToExport }),
+            });
+
+            if (!res.ok) {
+                toast.error("Failed to download Excel");
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+
+            const monthName = MONTH_NAMES[Number(sheetMonth) - 1] ?? sheetMonth;
+
+            let finalName = `Salary Data`;
+            if (selectedSession !== '') finalName += `_${selectedSession}`;
+            if (sheetMonth !== '') finalName += `_${monthName}`;
+            if (sheetYear !== '') finalName += `_${sheetYear}`;
+
+            a.download = (finalName + '.xlsx');
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        catch (err) {
+            console.error(err);
+            toast.error("An error occurred while exporting Excel");
+        }
+        finally {
+            setIsExporting(false);
+        }
+    };
 
     const handleSaveAllData = async () => {
         const salaryData = employees.map(d => ({
@@ -1242,9 +1426,9 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                     )}
 
                     {showSaveModal && (
-                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
 
-                            <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-6 relative">
+                            <div className="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6 relative">
 
                                 {/* Close Button */}
                                 <button
@@ -1266,11 +1450,20 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                             <tr>
                                                 <th className="border px-3 py-2 text-left">Emp Name</th>
                                                 <th className="border px-3 py-2 text-left">Emp Code</th>
+                                                <th className="border px-3 py-2 text-center">Total Days in Month</th>
                                                 <th className="border px-3 py-2 text-center">Present</th>
+                                                <th className="border px-3 py-2 text-center">Total Late</th>
                                                 <th className="border px-3 py-2 text-center">Total HD</th>
                                                 <th className="border px-3 py-2 text-center">Absent</th>
-                                                <th className="border px-3 py-2 text-center">Paid Days</th>
-                                                <th className="border px-3 py-2 text-center">Net Salary</th>
+                                                <th className="border px-3 py-2 text-center">Total W/O</th>
+                                                <th className="border px-3 py-2 text-center">Total PH</th>
+                                                <th className="border px-3 py-2 text-center">Approved CL</th>
+                                                <th className="border px-3 py-2 text-center">Net Pay Days</th>
+                                                <th className="border px-3 py-2 text-center">Basic Salary</th>
+                                                <th className="border px-3 py-2 text-center">Half Day Deduction</th>
+                                                <th className="border px-3 py-2 text-center">Absent Deduction</th>
+                                                <th className="border px-3 py-2 text-center">Total Deduction</th>
+                                                <th className="border px-3 py-2 text-center">Net Salary of Month</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1279,7 +1472,13 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                                     <td className="border px-3 py-2">{emp.name}</td>
                                                     <td className="border px-3 py-2">{emp.empCode}</td>
                                                     <td className="border px-3 py-2 text-center">
+                                                        {emp.workingDays}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
                                                         {emp.totalPresentDays}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.totalLateCount}
                                                     </td>
                                                     <td className="border px-3 py-2 text-center">
                                                         {emp.totalHalfDay}
@@ -1288,10 +1487,31 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                                         {emp.totalAbsentDays}
                                                     </td>
                                                     <td className="border px-3 py-2 text-center">
+                                                        {emp.weeklyOffs}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.publicHolidays}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.approvedCLDays}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
                                                         {emp.paidDays}
                                                     </td>
                                                     <td className="border px-3 py-2 text-center">
-                                                        ₹ {emp.netSalary}
+                                                        {emp.monthlySalary}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.halfDayDeduction.toFixed(2)}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.absentDeduction.toFixed(2)}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.totalDeduction}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.netSalary}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -1299,9 +1519,10 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                     </table>
                                 </div>
 
-                                {/* <div className="mt-5 flex justify-end">
+                                <div className="mt-5 flex justify-end gap-3">
+                                    <Button type="button" text={isExporting ? "Exporting..." : "Export to Excel"} icon={<></>} onClick={handleExportToExcel} />
                                     <Button type="button" text="Confirm & Save" icon={<></>} setGreen onClick={handleSaveAllData} />
-                                </div> */}
+                                </div>
 
                             </div>
                         </div>
