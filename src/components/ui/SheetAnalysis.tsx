@@ -5,7 +5,7 @@ import FileUpload from "@/components/ui/FileUpload";
 import FormFooterActions from "@/components/ui/FormFooterActions";
 import FormSection from "@/components/ui/FormSection";
 import FullPageLoader from "@/components/ui/FullPageLoader";
-import { Camera, FileSpreadsheet, IndianRupee, Settings2, Sheet } from "lucide-react";
+import { Camera, FileSpreadsheet, Settings2, Sheet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -13,6 +13,22 @@ import * as XLSX from "xlsx";
 import InputField from "@/components/ui/InputField";
 import SelectField from "./SelectField";
 import { useSessions } from "@/hooks/useSessions";
+
+/* ------------------------------------------------------------------ */
+/*  Constants (per Attendance & Payroll Portal spec)                  */
+/* ------------------------------------------------------------------ */
+
+// Fixed grace window added to the (configurable) expected punch time.
+// InTime <= punchTime            -> P
+// punchTime < InTime <= +GRACE   -> L
+// InTime > punchTime + GRACE     -> HD
+const LATE_GRACE_MINUTES = 15;
+
+// Default expected punch-in time shown in Settings; user can edit.
+const DEFAULT_PUNCH_TIME = "07:25";
+
+// Every 3 "Late" days converts to 1 Half Day (INT division).
+const LATE_DAYS_PER_HALF_DAY = 3;
 
 type TapInOut = {
     tapInOutExcel: File | null;
@@ -22,20 +38,49 @@ type EmployeeData = {
     empCode: string;
     name: string;
     days: string[];
+
+    // expected punch-in time used for status calc, per day
     punchTime: string[];
-    status: string[];
+
+    // raw values pulled straight from the uploaded sheet
     inTime: string[];
     outTime: string[];
     total: string[];
+    sheetStatus: string[]; // status as it appears in the uploaded sheet - REFERENCE ONLY, not used in calculations
+
+    // system-calculated status per day (the one actually driving payroll)
+    calculatedStatus: string[];
+
+    // how late (HH:MM) on days marked L or HD due to lateness
     lateBy: string[];
-    totalLate: string;
-    halfDays: number;
-    halfDayFlags: boolean[];
-    totalPresentDays: number;
-    publicHolidays: number;
-    reqCasualLeaves: number;
-    reqLeavesWithoutPay: number;
-    totalPayableDays: number;
+    totalLateDuration: string; // HH:MM, informational only
+
+    // attendance summary (calculated)
+    totalLateCount: number;       // count of days with calculated status 'L'
+    actualHalfDay: number;        // count of days with calculated status 'HD'
+    lateConvertedHalfDay: number; // INT(totalLateCount / 3)
+    totalHalfDay: number;         // actualHalfDay + lateConvertedHalfDay
+    totalPresentDays: number;     // count of 'P'
+    totalAbsentDays: number;      // count of 'AB'
+    weeklyOffs: number;           // count of 'W/O'
+    publicHolidays: number;       // count of 'PH'
+    approvedCLDays: number;       // count of 'CL'
+    paidDays: number;             // P + W/O + PH + CL (display)
+
+    // CL ledger (display only, does not affect salary)
+    hasCLData: boolean; // false = no matching MaxLeaveData record found for this employee
+    openingCL: number;
+    monthlyEarnedCL: number;
+    closingCL: number;
+
+    // salary
+    workingDays: number;
+    monthlySalary: number;       // the actual matched salary used below - source of truth for display
+    salaryMatchTier: 'exact' | 'loose' | 'none'; // which Employee Code match found this record
+    perDaySalary: number;
+    halfDayDeduction: number;
+    absentDeduction: number;
+    totalDeduction: number;
     netSalary: number;
 };
 
@@ -49,6 +94,11 @@ type PublicHolidayData = {
     isHoliday: boolean;
 }
 
+type SundayData = {
+    sheetDay: string;
+    isSunday: boolean;
+}
+
 type LeaveData = {
     id: string;
     sessionId: string;
@@ -56,6 +106,7 @@ type LeaveData = {
     startDate: string;
     endDate: string;
     type: string;
+    empId: string;
 }
 
 type MaxLeaveData = {
@@ -63,18 +114,17 @@ type MaxLeaveData = {
     sessionId: string;
     tId: string;
     maxCLs: number;
-    maxLWPs: number;
     usedCLs: number;
-    usedLWPs: number;
+    empId: string;
 }
 
 type BasicSalaryData = {
     id: string;
     tId: string;
-    salary: number;
+    salary: number | string; // API sends this as a string (e.g. "14145.00") despite being numeric - always Number() it before use
     installment: number;
     teacherName: string;
-    empId: string;
+    empId: string | null;
 }
 
 type Props = {
@@ -83,7 +133,7 @@ type Props = {
 
 type ExcelRow = (string | number | boolean | null | undefined)[];
 
-export default function SheetAnalysis({basicSalaryData} : Props) {
+export default function SheetAnalysis({ basicSalaryData }: Props) {
     const router = useRouter();
     const [pageLoading, setPageLoading] = useState(false);
     const [tapInOutSheet, setTapInOutSheet] = useState<TapInOut>({
@@ -95,19 +145,18 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
 
     const [punchTimeInput, setPunchTimeInput] = useState(false);
     const [sheetDays, setSheetDays] = useState<string[]>([]);
-    const [defPunchTime, setDefPunchTime] = useState<string>('');
+    const [defPunchTime, setDefPunchTime] = useState<string>(DEFAULT_PUNCH_TIME);
     const [punchTimeData, setPunchTimeData] = useState<PunchTimeData[]>([]);
 
     const [showEditIndPunchTime, setShowEditIndPunchTime] = useState(false);
 
-    const [maxLateDays, setMaxLateDays] = useState(3);
-    const [lateThreshold, setLateThreshold] = useState(45);
-
-    const [halfDayCriteria, setHalfDayCriteria] = useState('Days');
     const [selectedSession, setSelectedSession] = useState('');
 
     const [publicHolidays, setPublicHolidays] = useState<PublicHolidayData[]>([]);
     const [showPublicHolidayEdit, setShowPublicHolidayEdit] = useState(false);
+
+    const [sundays, setSundays] = useState<SundayData[]>([]);
+    const [showSundayEdit, setShowSundayEdit] = useState(false);
 
     const [empMaxLeavesData, setEmpMaxLEavesData] = useState<MaxLeaveData[]>([]);
 
@@ -119,6 +168,8 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
 
     const [sheetMonth, setSheetMonth] = useState('');
     const [sheetYear, setSheetYear] = useState('');
+
+    const [showSaveModal, setShowSaveModal] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, name: string) => {
         const file = e.target.files?.[0];
@@ -143,7 +194,7 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
 
         const { name, value } = e.target;
 
-        const updatedPunchData = sheetDays.map((day, index) => {
+        const updatedPunchData = sheetDays.map((day) => {
             const existing = punchTimeData.find(d => d.sheetDay === day);
             return {
                 sheetDay: day,
@@ -153,7 +204,6 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
 
         setDefPunchTime(value);
         setPunchTimeData(updatedPunchData);
-        console.log(updatedPunchData);
     }
 
     const timeToMinutes = (time: string) => {
@@ -167,6 +217,33 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
         const h = Math.floor(minutes / 60);
         const m = minutes % 60;
         return `${h}:${m.toString().padStart(2, "0")}`;
+    };
+
+    // Calendar days in the selected month/year, e.g. July -> 31.
+    // This is "Working Days" per the payroll spec - NOT the number of
+    // day-columns found in the uploaded sheet.
+    const getWorkingDaysInMonth = (month: number, year: number) => {
+        if (!month || !year) return 0;
+        return new Date(year, month, 0).getDate();
+    };
+
+    // Turns a sheet day label (e.g. "1", "12") into an actual Date using
+    // the selected sheet month/year, so we can check it against approved
+    // CL leave ranges.
+    const getDateForDay = (day: string, month: number, year: number): Date | null => {
+        const dayNum = parseInt(String(day).replace(/\D/g, ""), 10);
+        if (!dayNum || !month || !year) return null;
+        return new Date(year, month - 1, dayNum);
+    };
+
+    const isApprovedCLDay = (empCode: string, date: Date | null, leaves: LeaveData[]) => {
+        if (!date) return false;
+        return leaves.some(l => {
+            if (l.empId != empCode || l.type !== "CL") return false;
+            const start = new Date(l.startDate);
+            const end = new Date(l.endDate);
+            return date >= start && date <= end;
+        });
     };
 
     const handleFileUpload = async (e: React.FormEvent) => {
@@ -212,14 +289,27 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                 sheetDay: day,
                 isHoliday: false
             }));
-
             setPublicHolidays(holidayDefaults);
+
+            const sundayDefaults = days.map(day => ({
+                sheetDay: day,
+                isSunday: false
+            }));
+            setSundays(sundayDefaults);
+
+            // Seed every day with the current default punch time so the
+            // Punch Time row/calculation isn't blank until the user
+            // manually touches the default punch time field.
+            const punchTimeDefaults = days.map(day => ({
+                sheetDay: day,
+                punchTime: defPunchTime
+            }));
+            setPunchTimeData(punchTimeDefaults);
         }
         catch (err) {
             console.error(err);
             toast.error("Error reading file");
         }
-
 
         setPunchTimeInput(true);
     }
@@ -286,6 +376,44 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
         }
     }
 
+    /**
+     * Computes the system status for a single day, in priority order:
+     *   1. Marked Public Holiday          -> PH
+     *   2. Marked Sunday, no punch        -> W/O
+     *   2b. Marked Sunday, punch present  -> P
+     *   3. Falls inside an approved CL    -> CL
+     *   4. Otherwise, by InTime vs the day's expected punch time:
+     *        no punch                    -> AB
+     *        InTime <= punchTime         -> P
+     *        punchTime < InTime <= +15   -> L
+     *        InTime > punchTime + 15     -> HD
+     */
+    const computeStatus = (
+        day: string,
+        inTime: string,
+        punchTime: string,
+        empCode: string,
+        leaves: LeaveData[]
+    ): string => {
+        const isPH = publicHolidays.find(h => h.sheetDay === day)?.isHoliday;
+        if (isPH) return "PH";
+
+        const isSunday = sundays.find(s => s.sheetDay === day)?.isSunday;
+        if (isSunday) {
+            return inTime ? "P" : "W/O";
+        }
+
+        const dateForDay = getDateForDay(day, Number(sheetMonth), Number(sheetYear));
+        if (isApprovedCLDay(empCode, dateForDay, leaves)) return "CL";
+
+        if (!inTime) return "AB";
+
+        const diff = timeToMinutes(inTime) - timeToMinutes(punchTime);
+        if (diff <= 0) return "P";
+        if (diff <= LATE_GRACE_MINUTES) return "L";
+        return "HD";
+    };
+
     const handlePreview = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -296,8 +424,9 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
             return;
         }
 
-        getMaxLeavesData();
-        getLeavesData();
+        await getMaxLeavesData();
+        await getLeavesData();
+
         try {
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(data);
@@ -326,7 +455,6 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                         if (cell.includes("emp") && cell.includes("code")) {
                             for (let k = j + 1; k < row.length; k++) {
                                 if (row[k]) {
-                                    // empCode = row[k];
                                     empCode = String(row[k]);
                                     break;
                                 }
@@ -336,7 +464,6 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                         if (cell.includes("emp") && cell.includes("name")) {
                             for (let k = j + 1; k < row.length; k++) {
                                 if (row[k]) {
-                                    // name = row[k];
                                     name = String(row[k]);
                                     break;
                                 }
@@ -370,19 +497,34 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                         name,
                         days: sheetDays,
                         punchTime: punchTime,
-                        status: getRowValues(statusRow).slice(1),
+                        sheetStatus: getRowValues(statusRow).slice(1), // reference only
+                        calculatedStatus: [],
                         inTime: getRowValues(inRow).slice(1),
                         outTime: getRowValues(outRow).slice(1),
                         total: getRowValues(totalRow).slice(1),
                         lateBy: [],
-                        totalLate: '',
-                        halfDays: 0,
-                        halfDayFlags: [],
+                        totalLateDuration: '00:00',
+                        totalLateCount: 0,
+                        actualHalfDay: 0,
+                        lateConvertedHalfDay: 0,
+                        totalHalfDay: 0,
                         totalPresentDays: 0,
+                        totalAbsentDays: 0,
+                        weeklyOffs: 0,
                         publicHolidays: 0,
-                        reqCasualLeaves: 0,
-                        reqLeavesWithoutPay: 0,
-                        totalPayableDays: 0,
+                        approvedCLDays: 0,
+                        paidDays: 0,
+                        hasCLData: false,
+                        openingCL: 0,
+                        monthlyEarnedCL: 0,
+                        closingCL: 0,
+                        workingDays: 0,
+                        monthlySalary: 0,
+                        salaryMatchTier: 'none',
+                        perDaySalary: 0,
+                        halfDayDeduction: 0,
+                        absentDeduction: 0,
+                        totalDeduction: 0,
                         netSalary: 0
                     });
 
@@ -395,150 +537,122 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                 return;
             }
 
+            const workingDays = getWorkingDaysInMonth(Number(sheetMonth), Number(sheetYear));
+
+            /* ---- Step 1: calculate status + attendance summary per day ---- */
             parsedEmployees.forEach((emp) => {
-                let totalPresents = 0;
-                let publicHolidaysCount = 0;
-                emp.lateBy = emp.status.map((status, i) => {
-                    const isHoliday = publicHolidays.find(
-                        h => h.sheetDay === emp.days[i]
-                    )?.isHoliday;
-                    if (status == 'P' && !isHoliday) {
-                        totalPresents += 1;
+                let totalPresent = 0, totalLate = 0, totalAbsent = 0;
+                let totalWO = 0, totalPH = 0, totalCL = 0, actualHalfDay = 0;
+                let totalLateMinutes = 0;
 
-                        const inTime = emp.inTime[i];
-                        const punch = emp.punchTime[i];
+                emp.calculatedStatus = emp.days.map((day, i) => {
+                    const status = computeStatus(
+                        day,
+                        emp.inTime[i],
+                        emp.punchTime[i],
+                        emp.empCode,
+                        empLeavesData
+                    );
 
-                        if (inTime && punch) {
-                            const diff = timeToMinutes(inTime) - timeToMinutes(punch);
-                            return diff > 0 ? minutesToTime(diff) : '00:00';
-                        }
+                    switch (status) {
+                        case "P": totalPresent++; break;
+                        case "L": totalLate++; break;
+                        case "HD": actualHalfDay++; break;
+                        case "AB": totalAbsent++; break;
+                        case "W/O": totalWO++; break;
+                        case "PH": totalPH++; break;
+                        case "CL": totalCL++; break;
                     }
 
-                    if (isHoliday) publicHolidaysCount += 1;
-
-                    return '00:00';
+                    return status;
                 });
 
-                emp.totalPresentDays = totalPresents;
-                emp.publicHolidays = publicHolidaysCount;
-                emp.totalLate = calTotalLate(emp);
-            });
-
-            parsedEmployees.forEach((emp) => {
-                let totalMinutes = 0;
-                let lateDaysCount = 0;
-
-                emp.halfDayFlags = [];
-                emp.halfDays = 0;
-
-                emp.lateBy.forEach((late, i) => {
-                    const isLate = late !== "00:00";
-
-                    if (isLate) {
-                        const [h, m] = late.split(":").map(Number);
-                        const mins = h * 60 + m;
-
-                        totalMinutes += mins;
-                        lateDaysCount++;
-
-                        if ((halfDayCriteria === 'Days' && lateDaysCount > maxLateDays) || (halfDayCriteria === 'Minutes' && totalMinutes > lateThreshold)) {
-                            emp.halfDayFlags[i] = true;
-                            // emp.halfDays += 0.5;
-                            emp.halfDays += 1;
-                        } else {
-                            emp.halfDayFlags[i] = false;
-                        }
-                    } else {
-                        emp.halfDayFlags[i] = false;
-                    }
+                // Late-by duration, only meaningful for days marked L or HD
+                emp.lateBy = emp.calculatedStatus.map((status, i) => {
+                    if (status !== "L" && status !== "HD") return "00:00";
+                    const diff = timeToMinutes(emp.inTime[i]) - timeToMinutes(emp.punchTime[i]);
+                    if (diff > 0) totalLateMinutes += diff;
+                    return diff > 0 ? minutesToTime(diff) : "00:00";
                 });
 
-                emp.totalLate = calTotalLate(emp);
+                const lateConvertedHalfDay = Math.floor(totalLate / LATE_DAYS_PER_HALF_DAY);
+                const totalHalfDay = actualHalfDay + lateConvertedHalfDay;
+
+                emp.totalPresentDays = totalPresent;
+                emp.totalLateCount = totalLate;
+                emp.actualHalfDay = actualHalfDay;
+                emp.lateConvertedHalfDay = lateConvertedHalfDay;
+                emp.totalHalfDay = totalHalfDay;
+                emp.totalAbsentDays = totalAbsent;
+                emp.weeklyOffs = totalWO;
+                emp.publicHolidays = totalPH;
+                emp.approvedCLDays = totalCL;
+                emp.paidDays = totalPresent + totalWO + totalPH + totalCL;
+
+                const h = Math.floor(totalLateMinutes / 60);
+                const m = totalLateMinutes % 60;
+                emp.totalLateDuration = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
             });
 
+            /* ---- Step 2: CL ledger (display only) ---- */
             parsedEmployees.forEach((emp) => {
-                const empLeaves = empLeavesData.filter(
-                    l => l.tId === emp.empCode && l.type === "CL"
-                );
+                // NOTE: with only a single `empId` field available on
+                // MaxLeaveData, we can't distinguish a running yearly
+                // balance from a month-specific one - this is a best
+                // effort display based on the data currently exposed.
+                const empMax = empMaxLeavesData.find(e => e.empId == emp.empCode);
+                const monthlyEarnedCL = 1;
 
-                const currentMonth = Number(sheetMonth); // TODO: dynamic
-                const currentYear = Number(sheetYear);
+                emp.hasCLData = !!empMax;
+                emp.openingCL = empMax ? Math.max(0, empMax.maxCLs - empMax.usedCLs) : 0;
+                emp.monthlyEarnedCL = monthlyEarnedCL;
+                emp.closingCL = empMax
+                    ? Math.max(0, emp.openingCL + monthlyEarnedCL - emp.approvedCLDays)
+                    : 0;
+            });
 
-                const getMonthYear = (month: number, year: number, offset: number) => {
-                    const date = new Date(year, month - 1 + offset);
-                    return {
-                        month: date.getMonth() + 1,
-                        year: date.getFullYear()
-                    };
-                };
+            /* ---- Step 3: salary ---- */
+            parsedEmployees.forEach((emp) => {
+                // Priority 1: exact Employee Code match.
+                // Priority 2: loose (trimmed/case-insensitive) match, as a
+                // stand-in for a separate "Employee ID" field - the current
+                // data model only exposes a single `empId` per record.
+                // NOTE: basicSalaryData.salary can arrive as a string from
+                // the API (e.g. "14145.00") despite the TS type saying
+                // number - always coerce with Number() before using it.
+                let matchedRecord = basicSalaryData?.find(bs => bs.empId != null && bs.empId == emp.empCode);
+                let matchTier: 'exact' | 'loose' | 'none' = matchedRecord ? 'exact' : 'none';
 
-                const prev = getMonthYear(currentMonth, currentYear, -1);
-                const curr = { month: currentMonth, year: currentYear };
-                const next = getMonthYear(currentMonth, currentYear, 1);
-
-                const isCLUsedInMonth = (month: number, year: number) => {
-                    return empLeaves.some(leave => {
-                        const start = new Date(leave.startDate);
-                        const end = new Date(leave.endDate);
-
-                        const monthStart = new Date(year, month - 1, 1);
-                        const monthEnd = new Date(year, month, 0);
-
-                        return start <= monthEnd && end >= monthStart;
-                    });
-                };
-
-                let availableCL = 0;
-
-                if (!isCLUsedInMonth(prev.month, prev.year)) availableCL += 1;
-                if (!isCLUsedInMonth(curr.month, curr.year)) availableCL += 1;
-                if (!isCLUsedInMonth(next.month, next.year)) availableCL += 1;
-
-                const empMax = empMaxLeavesData.find(e => e.tId === emp.empCode);
-
-                let remainingCL = 0;
-
-                if (empMax) {
-                    remainingCL = Math.max(0, empMax.maxCLs - empMax.usedCLs);
+                if (!matchedRecord) {
+                    matchedRecord = basicSalaryData?.find(
+                        bs => bs.empId != null && String(bs.empId).trim().toLowerCase() === String(emp.empCode).trim().toLowerCase()
+                    );
+                    if (matchedRecord) matchTier = 'loose';
                 }
-                else remainingCL = 13;
 
-                availableCL = Math.min(availableCL, remainingCL);
+                const basicSalary = matchedRecord ? Number(matchedRecord.salary) : undefined;
 
-                const requiredLeave = emp.halfDays * 0.5;
+                emp.workingDays = workingDays;
+                emp.salaryMatchTier = matchTier;
+                emp.monthlySalary = basicSalary ?? 0;
 
-                const clUsed = Math.min(requiredLeave, availableCL);
-                const lwpUsed = Number((requiredLeave - clUsed).toFixed(2));
-
-                emp.reqCasualLeaves = Number(clUsed.toFixed(2));
-                emp.reqLeavesWithoutPay = lwpUsed;
-            });
-
-            parsedEmployees.forEach((emp) => {
-                let totalPayables = 0;
-                emp.status.forEach((status, i) => {
-                    const isHoliday = publicHolidays.find(h => h.sheetDay === emp.days[i])?.isHoliday;
-
-                    if (status === 'P' || status === 'WO' || isHoliday) {
-                        totalPayables += 1;
-                    }
-                });
-
-                totalPayables += emp.reqCasualLeaves;
-                totalPayables -= emp.reqLeavesWithoutPay;
-                emp.totalPayableDays = totalPayables;
-
-                const totalDays = punchTimeData.length;
-                const basicSalary = basicSalaryData?.find(bs => bs.empId == emp.empCode)?.salary;
-                if(!basicSalary){
+                if (basicSalary === undefined || !Number.isFinite(basicSalary) || !workingDays) {
                     emp.netSalary = 0;
+                    return;
                 }
-                else{
-                    const perDaySalary = basicSalary / totalDays;
-                    const netSalary = perDaySalary * totalPayables;
-                    emp.netSalary = netSalary;
-                }
-            })
+
+                const perDaySalary = basicSalary / workingDays;
+                const halfDayDeduction = (perDaySalary / 2) * emp.totalHalfDay;
+                const absentDeduction = perDaySalary * emp.totalAbsentDays;
+                const totalDeduction = Math.round(halfDayDeduction + absentDeduction);
+                const netSalary = Math.round(basicSalary - totalDeduction);
+
+                emp.perDaySalary = perDaySalary;
+                emp.halfDayDeduction = halfDayDeduction;
+                emp.absentDeduction = absentDeduction;
+                emp.totalDeduction = totalDeduction;
+                emp.netSalary = netSalary;
+            });
 
             setEmployees(parsedEmployees);
             toast.success("Analysis Completed");
@@ -549,29 +663,7 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
         }
     };
 
-    const calTotalLate = (data: EmployeeData) => {
-        console.log(JSON.stringify(data));
-        let totalMinutes = 0;
-
-        data.lateBy.forEach((lateData: string) => {
-            if (lateData && lateData !== "00:00") {
-                const [hours, minutes] = lateData.split(":").map(Number);
-                totalMinutes += (hours * 60) + minutes;
-            }
-        });
-
-        // Convert back to HH:MM format
-        const finalHours = Math.floor(totalMinutes / 60);
-        const finalMinutes = totalMinutes % 60;
-
-        const result = `${String(finalHours).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
-        console.log(result);
-
-        return result;
-    };
-
     const handleResetToDefPunchTime = () => {
-        console.log("Punch Time - " + defPunchTime);
         const updated = punchTimeData.map(item => ({
             ...item,
             punchTime: defPunchTime
@@ -584,29 +676,33 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
 
     const handleIndividualPunchTime = () => {
         setShowPublicHolidayEdit(false);
+        setShowSundayEdit(false);
 
         if (punchTimeData.length === 0 || (punchTimeData[0].punchTime === '')) {
             toast.error("Please select the default punch time first");
             return;
         }
 
-        if (showEditIndPunchTime) {
-            setShowEditIndPunchTime(false);
-            return;
-        }
-        setShowEditIndPunchTime(true);
+        setShowEditIndPunchTime(prev => !prev);
     }
 
     const handleIndividualPublicHoliday = () => {
         setShowEditIndPunchTime(false);
+        setShowSundayEdit(false);
         setShowPublicHolidayEdit(prev => !prev)
+    }
+
+    const handleIndividualSunday = () => {
+        setShowEditIndPunchTime(false);
+        setShowPublicHolidayEdit(false);
+        setShowSundayEdit(prev => !prev);
     }
 
     const handleIndividualChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
         sheetDay: string
     ) => {
-        const { name, value } = e.target;
+        const { value } = e.target;
 
         const updated = punchTimeData.map(item =>
             item.sheetDay === sheetDay
@@ -616,12 +712,6 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
 
         setPunchTimeData(updated);
     };
-
-    const handleHalfDayCriteriaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setEmployees([]);
-        const { name, value } = e.target;
-        setHalfDayCriteria(value);
-    }
 
     const handleHolidayChange = (
         e: React.ChangeEvent<HTMLInputElement>,
@@ -634,12 +724,36 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
         );
 
         setPublicHolidays(updated);
+        setEmployees([]);
     };
 
     const resetHolidays = () => {
         setPublicHolidays(prev =>
             prev.map(item => ({ ...item, isHoliday: false }))
         );
+        setEmployees([]);
+        toast.success("Reset completed");
+    };
+
+    const handleSundayChange = (
+        e: React.ChangeEvent<HTMLInputElement>,
+        sheetDay: string
+    ) => {
+        const updated = sundays.map(item =>
+            item.sheetDay === sheetDay
+                ? { ...item, isSunday: e.target.checked }
+                : item
+        );
+
+        setSundays(updated);
+        setEmployees([]);
+    };
+
+    const resetSundays = () => {
+        setSundays(prev =>
+            prev.map(item => ({ ...item, isSunday: false }))
+        );
+        setEmployees([]);
         toast.success("Reset completed");
     };
 
@@ -650,18 +764,82 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
 
     const handleFieldValuesChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
         const { name, value } = e.target;
-        if(name === "sheetMonth"){
+        if (name === "sheetMonth") {
             setSheetMonth(value);
         }
-        if(name === "sheetYear"){
+        if (name === "sheetYear") {
             setSheetYear(value);
         }
         setEmployees([]);
     }
 
+    const handleSaveAllDataModal = () => {
+        if (employees.length === 0) {
+            toast.error("No data to save");
+            return;
+        }
+        setShowSaveModal(true);
+    }
+
+    const handleSaveAllData = async () => {
+        const salaryData = employees.map(d => ({
+            empCode: d.empCode,
+            name: d.name,
+            totalPresentDays: d.totalPresentDays,
+            totalAbsentDays: d.totalAbsentDays,
+            weeklyOffs: d.weeklyOffs,
+            publicHolidays: d.publicHolidays,
+            approvedCLDays: d.approvedCLDays,
+            actualHalfDay: d.actualHalfDay,
+            lateConvertedHalfDay: d.lateConvertedHalfDay,
+            totalHalfDay: d.totalHalfDay,
+            paidDays: d.paidDays,
+            workingDays: d.workingDays,
+            perDaySalary: d.perDaySalary,
+            halfDayDeduction: d.halfDayDeduction,
+            absentDeduction: d.absentDeduction,
+            totalDeduction: d.totalDeduction,
+            netSalary: d.netSalary
+        }))
+
+        setPageLoading(true);
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/saveAllEmpSalaryData.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    salaryData
+                }),
+            });
+
+            const data = await res.json();
+            if (!data.error) {
+                toast.success("Data Saved");
+                setShowSaveModal(false);
+            }
+            else {
+                toast.error("Failed to save data");
+            }
+        }
+        catch (err) {
+            toast.error("Some error occurred");
+            console.error(err);
+        }
+        finally {
+            setPageLoading(false);
+        }
+    }
+
     const loading = pageLoading || sessionsLoading;
 
     if (loading) return <FullPageLoader />;
+
+    const fmtCurrency = (val: number) => {
+        const n = Number(val);
+        return `₹${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
+    };
 
     return (
         <>
@@ -690,17 +868,29 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                     <form onSubmit={handlePreview}>
                         <FormSection title="Settings" icon={<Settings2 />} margin={false}>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <InputField type="time" label="Default Punch Time" name="defPunchTime" value={defPunchTime} onChange={handleChange} required />
+                                <InputField
+                                    type="time"
+                                    label="Default Punch Time (expected In Time)"
+                                    name="defPunchTime"
+                                    value={defPunchTime}
+                                    onChange={handleChange}
+                                    required
+                                />
                             </div>
-                            <div className="text-sm mt-2 flex gap-6">
+                            <p className="text-xs text-gray-500 mt-1">
+                                On time up to this value. Late window is a fixed {LATE_GRACE_MINUTES} minutes after this time; beyond that counts as a Half Day.
+                            </p>
+
+                            <div className="text-sm mt-2 flex gap-6 flex-wrap">
                                 <Button type="button" text={showEditIndPunchTime ? 'Hide Individual Punch Time' : 'Edit Individual Punch Time'} icon={<></>} onClick={handleIndividualPunchTime} setGreen={!showEditIndPunchTime} />
                                 <Button type="button" text={showPublicHolidayEdit ? 'Hide Public Holidays' : 'Mark Public Holidays'} onClick={handleIndividualPublicHoliday} icon={<></>} setGreen={!showPublicHolidayEdit} />
+                                <Button type="button" text={showSundayEdit ? 'Hide Sundays' : 'Mark Sundays'} onClick={handleIndividualSunday} icon={<></>} setGreen={!showSundayEdit} />
                             </div>
 
                             {showEditIndPunchTime && (
                                 <div className="flex flex-col gap-5">
                                     <div className="overflow-auto h-64 grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
-                                        {punchTimeData.map((item, index) => (
+                                        {punchTimeData.map((item) => (
                                             <InputField
                                                 key={item.sheetDay}
                                                 type="time"
@@ -733,10 +923,27 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-1 mt-5 md:grid-cols-4 gap-4">
-                                <SelectField label="Select Half Day Calculation Criteria" name="halfDayCriteria" value={halfDayCriteria} onChange={handleHalfDayCriteriaChange} options={['Days', 'Minutes']} required />
+                            {showSundayEdit && (
+                                <div className="flex flex-col gap-5">
+                                    <div className="overflow-auto h-64 grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
+                                        {sundays.map((item) => (
+                                            <label key={item.sheetDay} className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={item.isSunday}
+                                                    onChange={(e) => handleSundayChange(e, item.sheetDay)}
+                                                />
+                                                {item.sheetDay}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <Button type="button" text="Reset all to default" icon={<></>} onClick={resetSundays} setGreen />
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 mt-5 md:grid-cols-3 gap-4">
                                 <SelectField label="Select Session" name="sessionId" value={selectedSession} onChange={handleSessChange} options={sessions} required />
-                                <SelectField label="Enter Sheet Month Number" name="sheetMonth" value={sheetMonth} onChange={handleFieldValuesChange} options={["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]} required/>
+                                <SelectField label="Enter Sheet Month Number" name="sheetMonth" value={sheetMonth} onChange={handleFieldValuesChange} options={["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]} required />
                                 <InputField label="Enter Sheet Year (xxxx)" name="sheetYear" value={sheetYear} onChange={handleFieldValuesChange} required />
                             </div>
 
@@ -748,7 +955,7 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
 
             {punchTimeInput && employees.length > 0 && (
                 <div className="max-w-6xl mx-auto bg-white rounded-xl shadow p-6">
-                    <FormSection title="Employees" icon={<Sheet />}>
+                    <FormSection title="Employees" icon={<Sheet />} margin={false}>
                         <div className="h-96 overflow-auto">
                             {employees.map((emp, index) => (
                                 <div key={index} className="border rounded mb-4">
@@ -764,17 +971,17 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                                             <span>
                                                 {emp.name} (Emp Code: {emp.empCode})
                                             </span>
-                                            <div className="flex items-center gap-2 mt-2 sm:mt-0 ml-auto mr-3">
+                                            <div className="flex items-center gap-2 mt-2 sm:mt-0 ml-auto mr-3 flex-col sm:flex-row">
                                                 <span className="relative text-white rounded-full px-3 py-1 text-sm font-semibold bg-linear-to-br from-amber-400 via-amber-500 to-amber-700 shadow-md">
-                                                    Total Late: {emp.totalLate}
+                                                    Late Days: {emp.totalLateCount} ({emp.totalLateDuration})
                                                 </span>
 
                                                 <span className="text-sm text-white px-3 py-1 rounded-full font-semibold bg-linear-to-br from-purple-400 via-purple-500 to-purple-700 shadow-md">
-                                                    Half Days: {emp.halfDays}
+                                                    Total Half Days: {emp.totalHalfDay}
                                                 </span>
 
                                                 <button
-                                                    onClick={() => setSalaryModalEmp(emp)}
+                                                    onClick={(evt) => { evt.stopPropagation(); setSalaryModalEmp(emp); }}
                                                     className="ml-2 px-3 py-1 text-sm font-semibold rounded-full text-white bg-linear-to-br from-green-400 via-green-500 to-green-700 shadow-md cursor-pointer"
                                                 >
                                                     Salary Calculation
@@ -809,9 +1016,32 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                                                     </tr>
 
                                                     <tr>
-                                                        <td className="border px-2 py-1 font-bold h-10">Status</td>
-                                                        {emp.status.map((val, i) => (
-                                                            <td key={i} className={`border px-2 ${emp.halfDayFlags[i] ? 'bg-purple-500 text-white border-black' : ''}`}>{val}</td>
+                                                        <td className="border px-2 py-1 font-bold h-10" title="As found in the uploaded sheet - reference only, not used in calculations">
+                                                            Sheet Status (ref.)
+                                                        </td>
+                                                        {emp.sheetStatus.map((val, i) => (
+                                                            <td key={i} className="border px-2 text-gray-400">{val}</td>
+                                                        ))}
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td className="border px-2 py-1 font-bold h-10 bg-blue-50" title="Computed by the system - this is what drives payroll">
+                                                            Calculated Status
+                                                        </td>
+                                                        {emp.calculatedStatus.map((val, i) => (
+                                                            <td
+                                                                key={i}
+                                                                className={`border px-2 font-semibold ${val === 'HD' ? 'bg-purple-500 text-white border-black' :
+                                                                        val === 'AB' ? 'bg-red-500 text-white border-black' :
+                                                                            val === 'L' ? 'bg-amber-500 text-white border-black' :
+                                                                                val === 'CL' ? 'bg-blue-400 text-white border-black' :
+                                                                                    val === 'PH' ? 'bg-teal-400 text-white border-black' :
+                                                                                        val === 'W/O' ? 'bg-gray-400 text-white border-black' :
+                                                                                            'bg-blue-50'
+                                                                    }`}
+                                                            >
+                                                                {val}
+                                                            </td>
                                                         ))}
                                                     </tr>
 
@@ -848,15 +1078,20 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                                         </div>
                                     )}
                                 </div>
+
                             ))}
+                        </div>
+
+                        <div className="mt-2">
+                            <Button type="button" text="Save All Data" icon={<></>} onClick={handleSaveAllDataModal} setGreen />
                         </div>
 
                     </FormSection>
 
                     {salaryModalEmp && (
-                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
 
-                            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 relative">
+                            <div className="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6 relative">
 
                                 {/* Close Button */}
                                 <button
@@ -867,61 +1102,206 @@ export default function SheetAnalysis({basicSalaryData} : Props) {
                                 </button>
 
                                 {/* Header */}
-                                <h2 className="text-xl font-semibold mb-4 text-gray-800">
+                                <h2 className="text-xl font-semibold mb-1 text-gray-800">
                                     Salary Breakdown
                                 </h2>
+                                <p className="text-sm text-gray-600 mb-4">
+                                    {salaryModalEmp.name} (Emp Code: {salaryModalEmp.empCode})
+                                </p>
 
-                                {/* Employee Info */}
-                                <div className="mb-4">
-                                    <p className="text-sm text-gray-600">Employee</p>
-                                    <p className="font-semibold text-lg">
-                                        {salaryModalEmp.name} ({salaryModalEmp.empCode})
-                                    </p>
-                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                                {/* Stats Grid */}
-                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    {/* LEFT: attendance summary + CL ledger */}
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-gray-700 mb-2">Attendance Summary</h3>
+                                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-sm mb-5">
+                                            <div className="p-2 bg-gray-100 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">Present</p>
+                                                <p className="font-bold">{salaryModalEmp.totalPresentDays}</p>
+                                            </div>
+                                            <div className="p-2 bg-amber-50 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">Late</p>
+                                                <p className="font-bold">{salaryModalEmp.totalLateCount}</p>
+                                            </div>
+                                            <div className="p-2 bg-purple-50 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">Actual HD</p>
+                                                <p className="font-bold">{salaryModalEmp.actualHalfDay}</p>
+                                            </div>
+                                            <div className="p-2 bg-purple-50 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">Late Conv. HD</p>
+                                                <p className="font-bold">{salaryModalEmp.lateConvertedHalfDay}</p>
+                                            </div>
+                                            <div className="p-2 bg-purple-100 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">Total HD</p>
+                                                <p className="font-bold">{salaryModalEmp.totalHalfDay}</p>
+                                            </div>
+                                            <div className="p-2 bg-red-50 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">Absent</p>
+                                                <p className="font-bold">{salaryModalEmp.totalAbsentDays}</p>
+                                            </div>
+                                            <div className="p-2 bg-gray-100 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">W/O</p>
+                                                <p className="font-bold">{salaryModalEmp.weeklyOffs}</p>
+                                            </div>
+                                            <div className="p-2 bg-teal-50 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">PH</p>
+                                                <p className="font-bold">{salaryModalEmp.publicHolidays}</p>
+                                            </div>
+                                            <div className="p-2 bg-blue-50 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">Approved CL</p>
+                                                <p className="font-bold">{salaryModalEmp.approvedCLDays}</p>
+                                            </div>
+                                            <div className="p-2 bg-amber-100 rounded-lg text-center col-span-3 sm:col-span-1">
+                                                <p className="text-gray-500 text-xs">Paid Days</p>
+                                                <p className="font-bold">{salaryModalEmp.paidDays}</p>
+                                            </div>
+                                        </div>
 
-                                    <div className="p-3 bg-gray-100 rounded-lg">
-                                        <p className="text-gray-500">Present Days</p>
-                                        <p className="font-bold">{salaryModalEmp.totalPresentDays}</p>
+                                        <h3 className="text-sm font-semibold text-gray-700 mb-2">CL Ledger</h3>
+                                        {salaryModalEmp.hasCLData ? (
+                                            <div className="grid grid-cols-4 gap-2 text-sm">
+                                                <div className="p-2 bg-blue-50 rounded-lg text-center">
+                                                    <p className="text-gray-500 text-xs">Opening</p>
+                                                    <p className="font-bold">{salaryModalEmp.openingCL}</p>
+                                                </div>
+                                                <div className="p-2 bg-blue-50 rounded-lg text-center">
+                                                    <p className="text-gray-500 text-xs">Earned</p>
+                                                    <p className="font-bold">+{salaryModalEmp.monthlyEarnedCL}</p>
+                                                </div>
+                                                <div className="p-2 bg-blue-50 rounded-lg text-center">
+                                                    <p className="text-gray-500 text-xs">Availed</p>
+                                                    <p className="font-bold">-{salaryModalEmp.approvedCLDays}</p>
+                                                </div>
+                                                <div className="p-2 bg-blue-100 rounded-lg text-center">
+                                                    <p className="text-gray-500 text-xs">Closing</p>
+                                                    <p className="font-bold">{salaryModalEmp.closingCL}</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-gray-400 italic p-2 bg-gray-50 rounded-lg">
+                                                No CL record found for this employee for the selected session.
+                                            </p>
+                                        )}
                                     </div>
 
-                                    <div className="p-3 bg-gray-100 rounded-lg">
-                                        <p className="text-gray-500">Public Holidays</p>
-                                        <p className="font-bold">{salaryModalEmp.publicHolidays}</p>
-                                    </div>
+                                    {/* RIGHT: step by step calculation */}
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-gray-700 mb-2">Calculation Steps</h3>
+                                        <div className="border rounded-lg divide-y text-sm mb-5">
+                                            <div className="p-3 flex justify-between">
+                                                <span className="text-gray-600">1. Working Days (days in month)</span>
+                                                <span className="font-semibold">{salaryModalEmp.workingDays}</span>
+                                            </div>
+                                            <div className="p-3 flex justify-between">
+                                                <span className="text-gray-600">2. Monthly Salary</span>
+                                                <span className="text-right">
+                                                    <span className="font-semibold">{fmtCurrency(salaryModalEmp.monthlySalary)}</span>
+                                                    {salaryModalEmp.salaryMatchTier === 'loose' && (
+                                                        <span className="block text-xs text-amber-600">matched via loose Employee Code match</span>
+                                                    )}
+                                                    {salaryModalEmp.salaryMatchTier === 'none' && (
+                                                        <span className="block text-xs text-red-500">no salary record found</span>
+                                                    )}
+                                                </span>
+                                            </div>
+                                            {salaryModalEmp.monthlySalary > 500000 && (
+                                                <div className="p-2 bg-red-50 text-xs text-red-600">
+                                                    ⚠ This salary looks unusually high - please double check the source record for Emp Code {salaryModalEmp.empCode} in Basic Salary Setup.
+                                                </div>
+                                            )}
+                                            <div className="p-3 flex justify-between">
+                                                <span className="text-gray-600">3. Per Day Salary = Monthly Salary / Working Days</span>
+                                                <span className="font-semibold">{fmtCurrency(salaryModalEmp.perDaySalary)}</span>
+                                            </div>
+                                            <div className="p-3 flex justify-between">
+                                                <span className="text-gray-600">4. Half Day Deduction = (Per Day Salary / 2) × {salaryModalEmp.totalHalfDay} HD</span>
+                                                <span className="font-semibold text-red-600">- {fmtCurrency(salaryModalEmp.halfDayDeduction)}</span>
+                                            </div>
+                                            <div className="p-3 flex justify-between">
+                                                <span className="text-gray-600">5. Absent Deduction = Per Day Salary × {salaryModalEmp.totalAbsentDays} AB</span>
+                                                <span className="font-semibold text-red-600">- {fmtCurrency(salaryModalEmp.absentDeduction)}</span>
+                                            </div>
+                                            <div className="p-3 flex justify-between bg-red-50">
+                                                <span className="text-gray-700 font-medium">6. Total Deduction (rounded)</span>
+                                                <span className="font-bold text-red-700">- ₹{salaryModalEmp.totalDeduction}</span>
+                                            </div>
+                                        </div>
 
-                                    <div className="p-3 bg-purple-100 rounded-lg">
-                                        <p className="text-gray-500">CL Required</p>
-                                        <p className="font-bold text-purple-700">
-                                            {salaryModalEmp.reqCasualLeaves}
-                                        </p>
-                                    </div>
-
-                                    <div className="p-3 bg-red-100 rounded-lg">
-                                        <p className="text-gray-500">LWP Required</p>
-                                        <p className="font-bold text-red-600">
-                                            {salaryModalEmp.reqLeavesWithoutPay}
-                                        </p>
+                                        <div className="p-3 bg-green-50 rounded-lg text-center">
+                                            <p className="text-gray-500 text-sm">Net Salary (Monthly Salary − Total Deduction, rounded)</p>
+                                            <p className="text-2xl font-bold text-green-700">
+                                                ₹{salaryModalEmp.netSalary}
+                                            </p>
+                                        </div>
                                     </div>
 
                                 </div>
 
-                                {/* Footer */}
-                                <div className="mt-5 p-3 bg-amber-50 rounded-lg text-center">
-                                    <p className="text-gray-500 text-sm">Total Payable Days</p>
-                                    <p className="text-2xl font-bold text-amber-700">
-                                        {salaryModalEmp.totalPayableDays}
-                                    </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {showSaveModal && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+
+                            <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-6 relative">
+
+                                {/* Close Button */}
+                                <button
+                                    onClick={() => setShowSaveModal(false)}
+                                    className="absolute top-3 right-3 text-gray-500 hover:text-black text-xl cursor-pointer"
+                                >
+                                    ✕
+                                </button>
+
+                                {/* Header */}
+                                <h2 className="text-xl font-semibold mb-4 text-gray-800">
+                                    Save Employees Salary Data
+                                </h2>
+
+                                {/* Table */}
+                                <div className="overflow-auto max-h-96 border rounded-lg">
+                                    <table className="w-full text-sm border ">
+                                        <thead className="bg-gray-100 sticky top-0">
+                                            <tr>
+                                                <th className="border px-3 py-2 text-left">Emp Name</th>
+                                                <th className="border px-3 py-2 text-left">Emp Code</th>
+                                                <th className="border px-3 py-2 text-center">Present</th>
+                                                <th className="border px-3 py-2 text-center">Total HD</th>
+                                                <th className="border px-3 py-2 text-center">Absent</th>
+                                                <th className="border px-3 py-2 text-center">Paid Days</th>
+                                                <th className="border px-3 py-2 text-center">Net Salary</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {employees.map((emp, index) => (
+                                                <tr key={index}>
+                                                    <td className="border px-3 py-2">{emp.name}</td>
+                                                    <td className="border px-3 py-2">{emp.empCode}</td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.totalPresentDays}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.totalHalfDay}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.totalAbsentDays}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.paidDays}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        ₹ {emp.netSalary}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
 
-                                <div className="mt-5 p-3 bg-green-50 rounded-lg text-center">
-                                    <p className="text-gray-500 text-sm">Net Salary</p>
-                                    <p className="text-2xl font-bold text-green-700">
-                                        {salaryModalEmp.netSalary}
-                                    </p>
-                                </div>
+                                {/* <div className="mt-5 flex justify-end">
+                                    <Button type="button" text="Confirm & Save" icon={<></>} setGreen onClick={handleSaveAllData} />
+                                </div> */}
 
                             </div>
                         </div>
