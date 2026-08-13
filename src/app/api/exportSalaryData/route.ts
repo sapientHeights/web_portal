@@ -16,6 +16,7 @@ type SalaryData = {
     basicSalary: string;
     halfDayDeduction: string;
     absentDeduction: string;
+    lwpDeduction: string;
     totalDeduction: string;
     netSalary: string;
 }
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Sheet1");
 
-        const headers: string[] = ["Emp Name", "Emp Code", "Total Days in Month", "Present", "Total Late", "Total HD", "Absent", "Total W/O", "Total PH", "Approved CL", "Payable Days", "Basic Salary", "Half Day Deduction", "Absent Deduction", "Total Deduction (rounded)", "Net Salary"];
+        const headers: string[] = ["Emp Name", "Emp Code", "Total Days in Month", "Present", "Total Late", "Total HD", "Absent", "Total W/O", "Total PH", "Approved CL", "Payable Days", "Basic Salary", "Half Day Deduction", "Absent Deduction", "LWP Deduction", "Total Deduction (rounded)", "Net Salary"];
 
         // Add header row
         const headerRow = worksheet.addRow(headers);
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
                 item.basicSalary,
                 item.halfDayDeduction,
                 item.absentDeduction,
+                item.lwpDeduction,
                 item.totalDeduction,
                 item.netSalary
             ]);

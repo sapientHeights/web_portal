@@ -63,8 +63,8 @@ type EmployeeData = {
     // attendance summary (calculated)
     totalLateCount: number;       // count of days with calculated status 'L'
     actualHalfDay: number;        // count of days with calculated status 'HD'
-    lateConvertedHalfDay: number; // INT(totalLateCount / 3)
-    totalHalfDay: number;         // actualHalfDay + lateConvertedHalfDay
+    lateConvertedLWP: number;     // totalLateCount / 3, kept as a DECIMAL - this is Leave Without Pay, not a half day
+    totalHalfDay: number;         // = actualHalfDay only (late no longer converts into HD)
     totalPresentDays: number;     // count of 'P'
     totalAbsentDays: number;      // count of 'AB'
     weeklyOffs: number;           // count of 'W/O'
@@ -85,7 +85,8 @@ type EmployeeData = {
     perDaySalary: number;
     halfDayDeduction: number;
     absentDeduction: number;
-    totalDeduction: number;
+    lwpDeduction: number;        // Per Day Salary × lateConvertedLWP
+    totalDeduction: number;      // halfDayDeduction + absentDeduction + lwpDeduction (rounded)
     netSalary: number;
 };
 
@@ -627,7 +628,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                         totalLateDuration: '00:00',
                         totalLateCount: 0,
                         actualHalfDay: 0,
-                        lateConvertedHalfDay: 0,
+                        lateConvertedLWP: 0,
                         totalHalfDay: 0,
                         totalPresentDays: 0,
                         totalAbsentDays: 0,
@@ -645,6 +646,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                         perDaySalary: 0,
                         halfDayDeduction: 0,
                         absentDeduction: 0,
+                        lwpDeduction: 0,
                         totalDeduction: 0,
                         netSalary: 0
                     });
@@ -696,13 +698,17 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                     return diff > 0 ? minutesToTime(diff) : "00:00";
                 });
 
-                const lateConvertedHalfDay = Math.floor(totalLate / LATE_DAYS_PER_HALF_DAY);
-                const totalHalfDay = actualHalfDay + lateConvertedHalfDay;
+                // Late Count converts into a decimal Leave-Without-Pay
+                // figure (NOT a half day, and NOT rounded down) - e.g. 5
+                // late days -> 1.67 LWP. This is deducted separately from
+                // Half Day Deduction, via LWP Deduction below.
+                const lateConvertedLWP = totalLate / LATE_DAYS_PER_HALF_DAY;
+                const totalHalfDay = actualHalfDay;
 
                 emp.totalPresentDays = totalPresent;
                 emp.totalLateCount = totalLate;
                 emp.actualHalfDay = actualHalfDay;
-                emp.lateConvertedHalfDay = lateConvertedHalfDay;
+                emp.lateConvertedLWP = lateConvertedLWP;
                 emp.totalHalfDay = totalHalfDay;
                 emp.totalAbsentDays = totalAbsent;
                 emp.weeklyOffs = totalWO;
@@ -765,12 +771,14 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                 const perDaySalary = basicSalary / workingDays;
                 const halfDayDeduction = (perDaySalary / 2) * emp.totalHalfDay;
                 const absentDeduction = perDaySalary * emp.totalAbsentDays;
-                const totalDeduction = Math.round(halfDayDeduction + absentDeduction);
+                const lwpDeduction = perDaySalary * emp.lateConvertedLWP;
+                const totalDeduction = Math.round(halfDayDeduction + absentDeduction + lwpDeduction);
                 const netSalary = Math.round(basicSalary - totalDeduction);
 
                 emp.perDaySalary = perDaySalary;
                 emp.halfDayDeduction = halfDayDeduction;
                 emp.absentDeduction = absentDeduction;
+                emp.lwpDeduction = lwpDeduction;
                 emp.totalDeduction = totalDeduction;
                 emp.netSalary = netSalary;
             });
@@ -923,6 +931,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
             basicSalary: String(emp.monthlySalary),
             halfDayDeduction: String(emp.halfDayDeduction.toFixed(2)),
             absentDeduction: String(emp.absentDeduction.toFixed(2)),
+            lwpDeduction: String(emp.lwpDeduction.toFixed(2)),
             totalDeduction: String(emp.totalDeduction),
             netSalary: String(emp.netSalary),
         }));
@@ -969,19 +978,24 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
         const salaryData = employees.map(d => ({
             empCode: d.empCode,
             name: d.name,
+            month: Number(sheetMonth),
+            year: Number(sheetYear),
+            sessionId: selectedSession,
             totalPresentDays: d.totalPresentDays,
             totalAbsentDays: d.totalAbsentDays,
             weeklyOffs: d.weeklyOffs,
             publicHolidays: d.publicHolidays,
             approvedCLDays: d.approvedCLDays,
             actualHalfDay: d.actualHalfDay,
-            lateConvertedHalfDay: d.lateConvertedHalfDay,
+            lateConvertedLWP: d.lateConvertedLWP,
             totalHalfDay: d.totalHalfDay,
             paidDays: d.paidDays,
             workingDays: d.workingDays,
+            monthlySalary: d.monthlySalary,
             perDaySalary: d.perDaySalary,
             halfDayDeduction: d.halfDayDeduction,
             absentDeduction: d.absentDeduction,
+            lwpDeduction: d.lwpDeduction,
             totalDeduction: d.totalDeduction,
             netSalary: d.netSalary
         }))
@@ -1311,9 +1325,9 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                                 <p className="text-gray-500 text-xs">Actual HD</p>
                                                 <p className="font-bold">{salaryModalEmp.actualHalfDay}</p>
                                             </div>
-                                            <div className="p-2 bg-purple-50 rounded-lg text-center">
-                                                <p className="text-gray-500 text-xs">Late Conv. HD</p>
-                                                <p className="font-bold">{salaryModalEmp.lateConvertedHalfDay}</p>
+                                            <div className="p-2 bg-orange-50 rounded-lg text-center">
+                                                <p className="text-gray-500 text-xs">Late Conv. LWP</p>
+                                                <p className="font-bold">{salaryModalEmp.lateConvertedLWP.toFixed(2)}</p>
                                             </div>
                                             <div className="p-2 bg-purple-100 rounded-lg text-center">
                                                 <p className="text-gray-500 text-xs">Total HD</p>
@@ -1402,11 +1416,15 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                                 <span className="font-semibold text-red-600">- {fmtCurrency(salaryModalEmp.halfDayDeduction)}</span>
                                             </div>
                                             <div className="p-3 flex justify-between">
-                                                <span className="text-gray-600">5. Absent Deduction = Per Day Salary × {salaryModalEmp.totalAbsentDays} AB</span>
+                                                <span className="text-gray-600">5. LWP Deduction = Per Day Salary × {salaryModalEmp.lateConvertedLWP.toFixed(2)} LWP (Late Conv.)</span>
+                                                <span className="font-semibold text-red-600">- {fmtCurrency(salaryModalEmp.lwpDeduction)}</span>
+                                            </div>
+                                            <div className="p-3 flex justify-between">
+                                                <span className="text-gray-600">6. Absent Deduction = Per Day Salary × {salaryModalEmp.totalAbsentDays} AB</span>
                                                 <span className="font-semibold text-red-600">- {fmtCurrency(salaryModalEmp.absentDeduction)}</span>
                                             </div>
                                             <div className="p-3 flex justify-between bg-red-50">
-                                                <span className="text-gray-700 font-medium">6. Total Deduction (rounded)</span>
+                                                <span className="text-gray-700 font-medium">7. Total Deduction (rounded)</span>
                                                 <span className="font-bold text-red-700">- ₹{salaryModalEmp.totalDeduction}</span>
                                             </div>
                                         </div>
@@ -1462,6 +1480,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                                 <th className="border px-3 py-2 text-center">Basic Salary</th>
                                                 <th className="border px-3 py-2 text-center">Half Day Deduction</th>
                                                 <th className="border px-3 py-2 text-center">Absent Deduction</th>
+                                                <th className="border px-3 py-2 text-center">LWP Deduction</th>
                                                 <th className="border px-3 py-2 text-center">Total Deduction</th>
                                                 <th className="border px-3 py-2 text-center">Net Salary of Month</th>
                                             </tr>
@@ -1506,6 +1525,9 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                                     </td>
                                                     <td className="border px-3 py-2 text-center">
                                                         {emp.absentDeduction.toFixed(2)}
+                                                    </td>
+                                                    <td className="border px-3 py-2 text-center">
+                                                        {emp.lwpDeduction.toFixed(2)}
                                                     </td>
                                                     <td className="border px-3 py-2 text-center">
                                                         {emp.totalDeduction}
