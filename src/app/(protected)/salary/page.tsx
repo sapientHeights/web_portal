@@ -5,7 +5,7 @@ import FullPageLoader from "@/components/ui/FullPageLoader";
 import Header from "@/components/ui/Header";
 import UserInfo from "@/components/ui/UserInfo";
 import { useUser } from "@/context/UserContext";
-import { CalendarFold, FileClock, IndianRupee, Sheet, StepBack, Wallet } from "lucide-react";
+import { BadgeIndianRupee, CalendarFold, FileClock, IndianRupee, Sheet, StepBack, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -15,6 +15,7 @@ import FormSection from "@/components/ui/FormSection";
 import LeavesData from "@/components/ui/LeavesData";
 import { useSessions } from "@/hooks/useSessions";
 import LeavesHistory from "@/components/ui/LeavesHistory";
+import SalaryData from "@/components/ui/SalaryData";
 
 type BasicSalaryData = {
     id: string;
@@ -163,11 +164,12 @@ export default function Salary() {
             <Header title='Sapient Heights' info='Manage salary for Sapient Heights' />
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Button icon={<IndianRupee />} text="Salary Data" onClick={() => handleCategoryClick('salary')} setGreen={category === 'salary'} />
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <Button icon={<IndianRupee />} text="Basic Salary Data" onClick={() => handleCategoryClick('salary')} setGreen={category === 'salary'} />
                     <Button icon={<CalendarFold />} text="Leave Data" onClick={() => handleCategoryClick('leavesData')} setGreen={category === 'leavesData'} />
                     <Button icon={<FileClock />} text="Leave History" onClick={() => handleCategoryClick('leavesHistory')} setGreen={category === 'leavesHistory'} />
                     <Button icon={<Sheet />} text="Sheet Analysis" onClick={() => handleCategoryClick('sheet')} setGreen={category === 'sheet'} />
+                    <Button icon={<BadgeIndianRupee />} text="Salary Data" onClick={() => handleCategoryClick('salaryData')} setGreen={category === 'salaryData'} />
                 </div>
             </div>
 
@@ -225,6 +227,10 @@ export default function Salary() {
 
             {category === 'sheet' && (
                 <SheetAnalysis basicSalaryData={basicSalaryData} />
+            )}
+
+            {category === 'salaryData' && (
+                <SalaryData sessions={sessions} activeSession={activeSession} />
             )}
 
         </div>

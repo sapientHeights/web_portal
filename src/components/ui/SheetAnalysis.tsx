@@ -699,10 +699,12 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                 });
 
                 // Late Count converts into a decimal Leave-Without-Pay
-                // figure (NOT a half day, and NOT rounded down) - e.g. 5
-                // late days -> 1.67 LWP. This is deducted separately from
-                // Half Day Deduction, via LWP Deduction below.
-                const lateConvertedLWP = totalLate / LATE_DAYS_PER_HALF_DAY;
+                // figure (NOT rounded down) - but ONLY once Late Count
+                // reaches the 3-day threshold; below that, no LWP applies
+                // at all (e.g. 2 late days -> 0 LWP, not 0.67).
+                const lateConvertedLWP = totalLate >= LATE_DAYS_PER_HALF_DAY
+                    ? totalLate / LATE_DAYS_PER_HALF_DAY
+                    : 0;
                 const totalHalfDay = actualHalfDay;
 
                 emp.totalPresentDays = totalPresent;
@@ -714,7 +716,12 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                 emp.weeklyOffs = totalWO;
                 emp.publicHolidays = totalPH;
                 emp.approvedCLDays = totalCL;
-                emp.paidDays = totalPresent + totalWO + totalPH + totalCL;
+                // Paid Days now also counts Late and Half-Day days as
+                // attended (they still incur their own deductions via
+                // Half Day Deduction / LWP Deduction - this is just the
+                // "days present at work" figure, not a payable-without-
+                // deduction figure).
+                emp.paidDays = totalPresent + totalWO + totalPH + totalCL + totalLate + totalHalfDay;
 
                 const h = Math.floor(totalLateMinutes / 60);
                 const m = totalLateMinutes % 60;
@@ -986,6 +993,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
             weeklyOffs: d.weeklyOffs,
             publicHolidays: d.publicHolidays,
             approvedCLDays: d.approvedCLDays,
+            totalLateCount: d.totalLateCount,
             actualHalfDay: d.actualHalfDay,
             lateConvertedLWP: d.lateConvertedLWP,
             totalHalfDay: d.totalHalfDay,
@@ -1368,7 +1376,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                                 </div>
                                                 <div className="p-2 bg-blue-50 rounded-lg text-center">
                                                     <p className="text-gray-500 text-xs">Availed</p>
-                                                    <p className="font-bold">-{salaryModalEmp.approvedCLDays}</p>
+                                                    <p className="font-bold">{salaryModalEmp.approvedCLDays > 0 ? `-${salaryModalEmp.approvedCLDays}` : 0}</p>
                                                 </div>
                                                 <div className="p-2 bg-blue-100 rounded-lg text-center">
                                                     <p className="text-gray-500 text-xs">Closing</p>
