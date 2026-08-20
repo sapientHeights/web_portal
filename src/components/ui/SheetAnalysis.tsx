@@ -113,6 +113,8 @@ type LeaveData = {
     endDate: string;
     type: string;
     empId: string;
+    duration?: string;     // 'FULL' | 'HALF' - absent/undefined on old records, treat as FULL
+    halfSession?: string;  // 'AM' | 'PM' - only meaningful when duration === 'HALF'
 }
 
 type MaxLeaveData = {
@@ -326,9 +328,9 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
         return new Date(Number(y), Number(m) - 1, Number(d));
     };
 
-    const isApprovedCLDay = (empCode: string, date: Date | null, leaves: LeaveData[]) => {
-        if (!date) return false;
-        return leaves.some(l => {
+    const findApprovedCLLeave = (empCode: string, date: Date | null, leaves: LeaveData[]): LeaveData | null => {
+        if (!date) return null;
+        return leaves.find(l => {
             if (l.empId != empCode || l.type !== "CL") return false;
             const start = parseLocalDate(l.startDate);
             const end = parseLocalDate(l.endDate);
@@ -337,7 +339,7 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                 return false;
             }
             return date >= start && date <= end;
-        });
+        }) ?? null;
     };
 
     const handleFileUpload = async (e: React.FormEvent) => {
@@ -485,7 +487,10 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
      *   1. Marked Public Holiday          -> PH
      *   2. Marked Sunday, no punch        -> W/O
      *   2b. Marked Sunday, punch present  -> P
-     *   3. Falls inside an approved CL    -> CL
+     *   3. Falls inside an approved CL:
+     *        full-day CL                 -> CL
+     *        half-day CL, punch present  -> CL (other half is covered by the punch)
+     *        half-day CL, no punch       -> CL/AB (other half is unaccounted for)
      *   4. Otherwise, by InTime vs the day's expected punch time:
      *        no punch                    -> AB
      *        unparseable InTime          -> AB (logged - bad source data, never guessed as HD)
@@ -509,7 +514,16 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
         }
 
         const dateForDay = getDateForDay(day, Number(sheetMonth), Number(sheetYear));
-        if (isApprovedCLDay(empCode, dateForDay, leaves)) return "CL";
+        const clLeave = findApprovedCLLeave(empCode, dateForDay, leaves);
+        if (clLeave) {
+            if (clLeave.duration === 'HALF') {
+                // Half-day CL only covers half the day - if there's no
+                // punch at all, the other half is unaccounted for and
+                // becomes a half-absent, not a free pass.
+                return inTime ? "CL" : "CL/AB";
+            }
+            return "CL";
+        }
 
         if (!inTime) return "AB";
 
@@ -677,6 +691,15 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                         freshLeavesData
                     );
 
+                    // A day with status "CL" can come from either a
+                    // full-day leave OR a half-day leave where a punch
+                    // was present (computeStatus collapses both to the
+                    // same status string) - the status string alone can't
+                    // tell them apart, so look the match up again here to
+                    // get the real duration for the ledger count.
+                    const dateForDay = getDateForDay(day, Number(sheetMonth), Number(sheetYear));
+                    const clLeave = findApprovedCLLeave(emp.empCode, dateForDay, freshLeavesData);
+
                     switch (status) {
                         case "P": totalPresent++; break;
                         case "L": totalLate++; break;
@@ -684,7 +707,8 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                         case "AB": totalAbsent++; break;
                         case "W/O": totalWO++; break;
                         case "PH": totalPH++; break;
-                        case "CL": totalCL++; break;
+                        case "CL": totalCL += (clLeave?.duration === 'HALF') ? 0.5 : 1; break;
+                        case "CL/AB": totalCL += 0.5; totalAbsent += 0.5; break;
                     }
 
                     return status;
@@ -1239,11 +1263,12 @@ export default function SheetAnalysis({ basicSalaryData }: Props) {
                                                                 key={i}
                                                                 className={`border px-2 font-semibold ${val === 'HD' ? 'bg-purple-500 text-white border-black' :
                                                                         val === 'AB' ? 'bg-red-500 text-white border-black' :
-                                                                            val === 'L' ? 'bg-amber-500 text-white border-black' :
-                                                                                val === 'CL' ? 'bg-blue-400 text-white border-black' :
-                                                                                    val === 'PH' ? 'bg-teal-400 text-white border-black' :
-                                                                                        val === 'W/O' ? 'bg-gray-400 text-white border-black' :
-                                                                                            'bg-blue-50'
+                                                                            val === 'CL/AB' ? 'bg-linear-to-br from-blue-400 to-red-500 text-white border-black' :
+                                                                                val === 'L' ? 'bg-amber-500 text-white border-black' :
+                                                                                    val === 'CL' ? 'bg-blue-400 text-white border-black' :
+                                                                                        val === 'PH' ? 'bg-teal-400 text-white border-black' :
+                                                                                            val === 'W/O' ? 'bg-gray-400 text-white border-black' :
+                                                                                                'bg-blue-50'
                                                                     }`}
                                                             >
                                                                 {val}

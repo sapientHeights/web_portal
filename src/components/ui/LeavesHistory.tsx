@@ -16,6 +16,8 @@ type LeaveHistory = {
     type: string;
     teacherName: string;
     empId: string;
+    duration: string;      // 'FULL' | 'HALF'
+    halfSession: string;   // 'AM' | 'PM' - only meaningful when duration === 'HALF'
 }
 
 type Props = {
@@ -30,7 +32,10 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
     const [action, setAction] = useState('');
     const [empLeavesHistory, setEmpLeavesHistory] = useState<LeaveHistory[]>(leavesHistory);
     const [showDialog, setShowDialog] = useState(false);
-    const [newLeaveHistory, setNewLeaveHistory] = useState<LeaveHistory>({ id: '', sessionId: '', tId: '', startDate: '', endDate: '', type: 'CL', teacherName: '', empId: '' });
+    const [newLeaveHistory, setNewLeaveHistory] = useState<LeaveHistory>({
+        id: '', sessionId: '', tId: '', startDate: '', endDate: '', type: 'CL',
+        teacherName: '', empId: '', duration: 'FULL', halfSession: ''
+    });
     const [leavesHistoryFound, setLeavesHistoryFound] = useState(false);
 
     const uniqueTeachers = Array.from(
@@ -90,7 +95,9 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
                 endDate: '',
                 type: 'CL',
                 teacherName: empData.teacherName,
-                empId: empData.empId
+                empId: empData.empId,
+                duration: 'FULL',
+                halfSession: ''
             });
         }
 
@@ -103,6 +110,12 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
 
     const handleAddLeaveHistory = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (newLeaveHistory.duration === 'HALF' && !newLeaveHistory.halfSession) {
+            toast.error("Please select AM or PM for a half-day leave");
+            return;
+        }
+
         setShowDialog(false);
         setLoading(true);
         try {
@@ -139,6 +152,35 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
             ...prev,
             [name]: value,
         }));
+    }
+
+    // Half-day leave is single-date only - switching to Half forces the
+    // end date to match the start date and locks the End Date field.
+    const handleDurationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const value = e.target.value;
+        setNewLeaveHistory((prev) => ({
+            ...prev,
+            duration: value,
+            endDate: value === 'HALF' ? prev.startDate : prev.endDate,
+            halfSession: value === 'HALF' ? prev.halfSession : ''
+        }));
+    }
+
+    const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setNewLeaveHistory((prev) => ({
+            ...prev,
+            startDate: value,
+            // Keep end date pinned to start date while in Half mode
+            endDate: prev.duration === 'HALF' ? value : prev.endDate
+        }));
+    }
+
+    // A half-day record is always 0.5, regardless of what the date math
+    // would say (start === end would otherwise compute to 1 full day).
+    const getNumberOfDays = (leave: LeaveHistory): number | string => {
+        if (leave.duration === 'HALF') return 0.5;
+        return ((new Date(leave.endDate).getTime() - new Date(leave.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
     }
 
     return (
@@ -225,9 +267,15 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
                                             <InputField label="Emp Code" name="empId" value={newLeaveHistory.empId} onChange={() => { }} disabled />
                                         </div>
                                         <div className="grid grid-col-1 sm:grid-cols-3 gap-10 mt-10">
-                                            <InputField type="date" label="Start Date" name="startDate" value={newLeaveHistory.startDate} onChange={handleNewDataChange} required />
-                                            <InputField type="date" label="End Date" name="endDate" value={newLeaveHistory.endDate} onChange={handleNewDataChange} required />
+                                            <SelectField label="Duration" name="duration" value={newLeaveHistory.duration} onChange={handleDurationChange} options={['FULL', 'HALF']} required />
                                             <SelectField label="Type" name="type" value={newLeaveHistory.type} onChange={handleNewDataChange} options={['CL', 'LWP']} required disabled />
+                                            {newLeaveHistory.duration === 'HALF' && (
+                                                <SelectField label="Half Session" name="halfSession" value={newLeaveHistory.halfSession} onChange={handleNewDataChange} options={['AM', 'PM']} required />
+                                            )}
+                                        </div>
+                                        <div className="grid grid-col-1 sm:grid-cols-3 gap-10 mt-10">
+                                            <InputField type="date" label="Start Date" name="startDate" value={newLeaveHistory.startDate} onChange={handleStartDateChange} required />
+                                            <InputField type="date" label="End Date" name="endDate" value={newLeaveHistory.endDate} onChange={handleNewDataChange} required disabled={newLeaveHistory.duration === 'HALF'} />
                                         </div>
                                     </FormSection>
                                     <FormFooterActions primaryLabel="Add" cancel={() => setShowDialog(false)} />
@@ -257,6 +305,7 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
                                                 <th className="px-4 py-3">End Date</th>
                                                 <th className="px-4 py-3">Number of Days</th>
                                                 <th className="px-4 py-3">Type</th>
+                                                <th className="px-4 py-3">Duration</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y text-center">
@@ -264,13 +313,16 @@ export default function LeavesHistory({ sessions, activeSession }: Props) {
                                                 <tr key={idx}>
                                                     <td className="px-4 py-3">{leave.startDate}</td>
                                                     <td className="px-4 py-3">{leave.endDate}</td>
-                                                    <td className="px-4 py-3">{((new Date(leave.endDate).getTime() - new Date(leave.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1}</td>
+                                                    <td className="px-4 py-3">{getNumberOfDays(leave)}</td>
                                                     <td className="px-4 py-3">{leave.type}</td>
+                                                    <td className="px-4 py-3">
+                                                        {leave.duration === 'HALF' ? `Half (${leave.halfSession})` : 'Full'}
+                                                    </td>
                                                 </tr>
                                             ))}
                                             {!leavesHistoryFound && (
                                                 <tr>
-                                                    <td colSpan={4} className="px-4 py-3">
+                                                    <td colSpan={5} className="px-4 py-3">
                                                         <NoDataSection />
                                                     </td>
                                                 </tr>
