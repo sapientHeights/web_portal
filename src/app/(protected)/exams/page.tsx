@@ -1,6 +1,7 @@
 'use client';
 
 import Button from "@/components/ui/Button";
+import ExamAddSubjectDialog from "@/components/ui/ExamAddSubjectDialog";
 import ExamDeleteDialog from "@/components/ui/ExamDeleteDialog";
 import ExamUpdateDialog from "@/components/ui/ExamUpdateDialog";
 import FormFooterActions from "@/components/ui/FormFooterActions";
@@ -15,13 +16,12 @@ import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useSessions } from "@/hooks/useSessions";
 import { useSubjects } from "@/hooks/useSubjects";
-import { BadgePlus, BookOpenCheck, ChevronRight, Delete, Dices, Edit, Layers, Layers2, ListPlus, NotebookPen, Pencil, SquareSigma, StepBack } from "lucide-react";
+import { BadgePlus, BookOpenCheck, ChevronRight, Delete, Dices, Edit, FileText, Layers, Layers2, ListPlus, NotebookPen, Pencil, ScrollText, SquareSigma, StepBack, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 type ExamItem = {
-    classId: string;
     subjectId: string;
     date: string;
     minMarks: string;
@@ -30,6 +30,7 @@ type ExamItem = {
 
 type ExamData = {
     sessionId: string;
+    classId: string;
     name: string;
     desc: string;
     items: ExamItem[];
@@ -56,18 +57,26 @@ export default function Exams() {
     const { classes, isLoading: classesLoading } = useClasses();
     const [category, setCategory] = useState('add');
 
-    const initialExamData = { sessionId: "", name: "", desc: "", items: [{ classId: "", subjectId: "", date: "", minMarks: "", maxMarks: "" }] };
+    const initialExamData: ExamData = {
+        sessionId: "",
+        classId: "",
+        name: "",
+        desc: "",
+        items: [{ subjectId: "", date: "", minMarks: "", maxMarks: "" }]
+    };
 
     const [newExamData, setNewExamData] = useState<ExamData>(initialExamData);
     const [examsData, setExamsData] = useState<ExamDBData[]>();
 
     const [enableEdit, setEnableEdit] = useState(false);
     const [enableDelete, setEnableDelete] = useState(false);
+    const [enableAddSubject, setEnableAddSubject] = useState(false);
     const [selectedExamData, setSelectedExamData] = useState<ExamDBData>();
     const [editExamInfo, setEditExamInfo] = useState(false);
     const [deleteAllExams, setDeleteAllExams] = useState(false);
 
-    const { subjects, isLoading: subjectsLoading } = useSubjects(newExamData.items[newExamData.items.length - 1].classId);
+    const { subjects, isLoading: subjectsLoading } = useSubjects(newExamData.classId);
+    const [classForReport, setClassForReport] = useState('');
 
     const goBack = () => {
         setPageLoading(true);
@@ -95,6 +104,17 @@ export default function Exams() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
+
+        if (name === 'classId') {
+            // Class changed — clear subjects already picked in items since they depend on class
+            setNewExamData(prev => ({
+                ...prev,
+                classId: value,
+                items: prev.items.map(item => ({ ...item, subjectId: "" }))
+            }));
+            return;
+        }
+
         setNewExamData(prev => ({ ...prev, [name]: value }));
     };
 
@@ -113,34 +133,33 @@ export default function Exams() {
     };
 
     const reset = (showToast?: boolean) => {
-        console.log(JSON.stringify(newExamData));
         if (category === 'add') {
-            if ((JSON.stringify(newExamData) === JSON.stringify(initialExamData))) {
-                if (showToast) {
-                    toast.error("Nothing to clear!");
-                }
+            if (JSON.stringify(newExamData) === JSON.stringify(initialExamData)) {
+                if (showToast) toast.error("Nothing to clear!");
                 return;
             }
             setNewExamData(initialExamData);
             setActiveSession();
-        }
-        else if (category === 'view' || category === 'analysis') {
+        } else if (category === 'view' || category === 'analysis') {
             if (newExamData.sessionId === '') {
-                if (showToast) {
-                    toast.error("Nothing to clear!");
-                }
+                if (showToast) toast.error("Nothing to clear!");
                 return;
             }
             setNewExamData(initialExamData);
             setActiveSession();
+        } else if (category === 'reportGen') {
+            if (newExamData.sessionId === '' && classForReport === '') {
+                if (showToast) toast.error("Nothing to clear!");
+                return;
+            }
+            setNewExamData(initialExamData);
+            setActiveSession();
+            setClassForReport('');
         }
 
-        if (showToast) {
-            toast.success("Fields cleared!");
-        }
-
+        if (showToast) toast.success("Fields cleared!");
         setExamsData([]);
-    }
+    };
 
     const getExamsData = async () => {
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/viewExams.php`, {
@@ -174,6 +193,10 @@ export default function Exams() {
                 toast.error("Please fill all the required data");
                 return;
             }
+            if (!newExamData.classId) {
+                toast.error("Please select a class");
+                return;
+            }
         }
         else if (category === 'view' || category === 'analysis') {
             if (newExamData.sessionId === '') {
@@ -194,7 +217,12 @@ export default function Exams() {
                         sessionId: newExamData.sessionId,
                         name: newExamData.name,
                         desc: newExamData.desc,
-                        exams: newExamData.items
+                        // classId is selected once at the top level;
+                        // fan it out to each item so the backend contract is unchanged
+                        exams: newExamData.items.map(item => ({
+                            ...item,
+                            classId: newExamData.classId
+                        }))
                     })
                 });
 
@@ -207,6 +235,38 @@ export default function Exams() {
                     toast.error("Some error occurred!");
                 }
             }
+            else if (category === 'reportGen') {
+                if (!newExamData.sessionId || !classForReport) {
+                    toast.error("Please select a session and class");
+                    setPageLoading(false);
+                    return;
+                }
+
+                const res = await fetch('/api/reportCard', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId: newExamData.sessionId,
+                        classId: classForReport,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    toast.error(err.error || "Failed to generate report cards");
+                    return;
+                }
+
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `report-cards-${classForReport}-${newExamData.sessionId}.pdf`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success("Report cards downloaded!");
+            }
+
             else {
                 getExamsData();
             }
@@ -230,6 +290,11 @@ export default function Exams() {
         setEnableDelete(true);
         setDeleteAllExams(deleteAllExams);
         setSelectedExamData(examData);
+    }
+
+    const handleAddSubject = (examData: ExamDBData) => {
+        setSelectedExamData(examData);
+        setEnableAddSubject(true);
     }
 
     const handleMarksAnalysis = async (examData: ExamDBData) => {
@@ -269,13 +334,19 @@ export default function Exams() {
             items: [
                 ...prev.items,
                 {
-                    classId: "",
                     subjectId: "",
                     date: "",
                     minMarks: "",
                     maxMarks: ""
                 }
             ]
+        }));
+    };
+
+    const removeItem = (index: number) => {
+        setNewExamData(prev => ({
+            ...prev,
+            items: prev.items.filter((_, i) => i !== index)
         }));
     };
 
@@ -309,20 +380,27 @@ export default function Exams() {
             <Header title='Sapient Heights' info='Manage Exams for Sapient Heights' />
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
-                <div className="grid grid-cols-1 md:grid-cols-3 sm:gap-15 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-4 sm:gap-15 gap-5">
                     <Button icon={<Pencil />} text="Create Exam" onClick={() => handleCategoryClick('add')} setGreen={category === 'add'} />
                     <Button icon={<Layers2 />} text="View Exams" onClick={() => handleCategoryClick('view')} setGreen={category === 'view'} />
                     <Button icon={<Dices />} text="Marks Analysis" onClick={() => handleCategoryClick('analysis')} setGreen={category === 'analysis'} />
+                    <Button icon={<ScrollText />} text="Report Generation" onClick={() => handleCategoryClick('reportGen')} setGreen={category === 'reportGen'} />
                 </div>
             </div>
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
                 <form onSubmit={handleSubmit}>
-                    <FormSection title={category === 'add' ? `Enter Exam Details` : category === 'view' ? 'View Exams' : 'Analyze Marks'} icon={category === 'add' ? <BadgePlus /> : category === 'view' ? <BookOpenCheck /> : <SquareSigma />} margin={true}>
+                    <FormSection title={category === 'add' ? `Enter Exam Details` : category === 'view' ? 'View Exams' : category === 'analysis' ? 'Analyze Marks' : 'Generate Report Cards'} icon={category === 'add' ? <BadgePlus /> : category === 'view' ? <BookOpenCheck /> : category === 'analysis' ? <SquareSigma /> : <FileText />} margin={true}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-5">
                             <SelectField label="Session" name="sessionId" value={newExamData.sessionId} onChange={handleChange} options={sessions} required />
                             {category === 'add' && (
                                 <InputField label="Exam Name" type="text" name="name" value={newExamData.name} onChange={handleChange} maxLength={80} required />
+                            )}
+                            {category === 'add' && (
+                                <SelectField label="Class" name="classId" value={newExamData.classId} onChange={handleChange} options={classes} required />
+                            )}
+                            {category === 'reportGen' && (
+                                <SelectField label="Class" name="class" value={classForReport} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setClassForReport(e.target.value)} options={classes} required />
                             )}
                         </div>
                         {category === 'add' && (
@@ -332,11 +410,21 @@ export default function Exams() {
                             <>
                                 {newExamData.items.map((item, index) => (
                                     <div key={index} className="border border-gray-200 rounded-xl mt-4">
-                                        <p className="p-2 font-semibold font-sans">Exam: {index + 1}</p>
+                                        <div className="flex items-center justify-between p-2">
+                                            <p className="font-semibold font-sans">Exam: {index + 1}</p>
+                                            {newExamData.items.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeItem(index)}
+                                                    aria-label="Remove exam row"
+                                                >
+                                                    <X size={16} className="text-gray-500 hover:text-red-500" />
+                                                </button>
+                                            )}
+                                        </div>
                                         <hr className="text-gray-200" />
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
-                                            <SelectField label="Class" name="class" value={item.classId} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "classId", e.target.value)} options={classes} required />
-                                            <SelectField label="Subject" name="subject" value={item.subjectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleItemChange(index, "subjectId", e.target.value)} options={subjects} required disabled={item.classId === ''} />
+                                            <SelectField label="Subject" name="subject" value={item.subjectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleItemChange(index, "subjectId", e.target.value)} options={subjects} required disabled={newExamData.classId === ''} />
                                             <InputField label="Date" name="date" type="date" value={item.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "date", e.target.value)} required />
                                             <InputField label="Min Marks" name="minMarks" value={item.minMarks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "minMarks", e.target.value)} required />
                                             <InputField label="Max Marks" name="maxMarks" value={item.maxMarks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "maxMarks", e.target.value)} required />
@@ -349,12 +437,20 @@ export default function Exams() {
                             </>
                         )}
 
-                        <FormFooterActions primaryLabel={category === 'add' ? 'Create' : category === 'view' ? 'View' : 'Analyze'} reset={() => reset(true)} />
+                        <FormFooterActions
+                            primaryLabel={
+                                category === 'add' ? 'Create'
+                                    : category === 'view' ? 'View'
+                                        : category === 'analysis' ? 'Analyze'
+                                            : 'Generate'
+                            }
+                            reset={() => reset(true)}
+                        />
                     </FormSection>
                 </form>
             </div>
 
-            {examsData && examsData.length > 0 && (
+            {category != 'reportGen' && examsData && examsData.length > 0 && (
                 <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
                     <FormSection title="Exams Data" icon={<Layers />} margin={false}>
 
@@ -396,6 +492,7 @@ export default function Exams() {
                                                         <td className="px-4 py-3">
                                                             {category === 'view' && (
                                                                 <span className="flex gap-2">
+                                                                    <ListPlus onClick={() => handleAddSubject(first)} size={16} className="text-green-600" />
                                                                     <Edit onClick={() => handleEdit(first, true)} size={16} />
                                                                     <Delete onClick={() => handleDelete(first, true)} size={16} />
                                                                 </span>
@@ -450,6 +547,20 @@ export default function Exams() {
 
             {enableDelete && selectedExamData && (
                 <ExamDeleteDialog title="Delete Exam" selectedExamData={selectedExamData} setSelectedExamData={setSelectedExamData} setEnableDelete={setEnableDelete} setPageLoading={setPageLoading} getExamsData={getExamsData} deleteAllExams={deleteAllExams} />
+            )}
+
+            {enableAddSubject && selectedExamData && (
+                <ExamAddSubjectDialog
+                    title="Add Subject"
+                    examGroup={{
+                        uniqueExamId: selectedExamData.uniqueExamId,
+                        classId: selectedExamData.classId,
+                        name: selectedExamData.name
+                    }}
+                    setEnableAddSubject={setEnableAddSubject}
+                    setPageLoading={setPageLoading}
+                    getExamsData={getExamsData}
+                />
             )}
         </div>
     )
