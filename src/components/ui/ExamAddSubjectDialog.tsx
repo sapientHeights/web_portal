@@ -5,15 +5,21 @@ import FormSection from "@/components/ui/FormSection";
 import InputField from "@/components/ui/InputField";
 import SelectField from "@/components/ui/SelectField";
 import { useSubjects } from "@/hooks/useSubjects";
+import { EXAM_TYPE_OPTIONS, DEFAULT_MAX_MARKS } from "@/lib/examConstants";
 import { ListPlus, X } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
-type SubjectItem = {
-    subjectId: string;
+type Component = {
+    examType: string;
     date: string;
     minMarks: string;
     maxMarks: string;
+};
+
+type SubjectItem = {
+    subjectId: string;
+    components: Component[];
 };
 
 type ExamGroupInfo = {
@@ -25,35 +31,116 @@ type ExamGroupInfo = {
 type Props = {
     title: string;
     examGroup: ExamGroupInfo;
+    existingSubjectIds: string[];
     setEnableAddSubject: (val: boolean) => void;
     setPageLoading: (val: boolean) => void;
     getExamsData: () => Promise<void>;
 };
 
+const emptyComponent = (): Component => ({ examType: "", date: "", minMarks: "", maxMarks: "" });
+const emptyItem = (): SubjectItem => ({ subjectId: "", components: [emptyComponent()] });
+
 export default function ExamAddSubjectDialog({
     title,
     examGroup,
+    existingSubjectIds,
     setEnableAddSubject,
     setPageLoading,
     getExamsData,
 }: Props) {
-    const initialItem: SubjectItem = { subjectId: "", date: "", minMarks: "", maxMarks: "" };
-    const [items, setItems] = useState<SubjectItem[]>([{ ...initialItem }]);
+    const [items, setItems] = useState<SubjectItem[]>([emptyItem()]);
 
     const { subjects, isLoading: subjectsLoading } = useSubjects(examGroup.classId);
 
-    const handleItemChange = (index: number, field: keyof SubjectItem, value: string) => {
-        const updated = [...items];
-        updated[index][field] = value;
-        setItems(updated);
+    // Subjects already saved in the DB for this term, plus subjects picked in
+    // other subject blocks in this dialog — neither should be selectable again
+    const usedSubjectIds = (excludingSubjectIndex?: number) => [
+        ...existingSubjectIds,
+        ...items
+            .filter((_, i) => i !== excludingSubjectIndex)
+            .map(item => item.subjectId)
+            .filter(Boolean)
+    ];
+
+    const subjectOptionsFor = (subjectIndex: number): string[] => {
+        const used = usedSubjectIds(subjectIndex);
+        return subjects.filter(s => !used.includes(s));
     };
 
-    const addItem = () => {
-        setItems(prev => [...prev, { ...initialItem }]);
+    // How many subjects are still eligible to be added at all, ignoring what's
+    // already picked in the currently-open blocks
+    const remainingSubjectsCount = () => subjects.filter(s => !existingSubjectIds.includes(s)).length;
+
+    const addSubject = () => {
+        if (subjects.length > 0 && items.length >= remainingSubjectsCount()) return;
+        setItems(prev => [...prev, emptyItem()]);
     };
 
-    const removeItem = (index: number) => {
-        setItems(prev => prev.filter((_, i) => i !== index));
+    const removeSubject = (subjectIndex: number) => {
+        setItems(prev => prev.filter((_, i) => i !== subjectIndex));
+    };
+
+    const handleSubjectChange = (subjectIndex: number, subjectId: string) => {
+        setItems(prev => prev.map((item, i) => (i === subjectIndex ? { ...item, subjectId } : item)));
+    };
+
+    const addComponent = (subjectIndex: number) => {
+        const item = items[subjectIndex];
+        if (!item?.subjectId || item.components.length >= EXAM_TYPE_OPTIONS.length) return;
+
+        setItems(prev =>
+            prev.map((item, i) =>
+                i === subjectIndex ? { ...item, components: [...item.components, emptyComponent()] } : item
+            )
+        );
+    };
+
+    const removeComponent = (subjectIndex: number, componentIndex: number) => {
+        setItems(prev =>
+            prev.map((item, i) =>
+                i === subjectIndex
+                    ? { ...item, components: item.components.filter((_, ci) => ci !== componentIndex) }
+                    : item
+            )
+        );
+    };
+
+    // Updating a component; when the field being changed is examType and
+    // maxMarks hasn't been manually set yet, prefill a sensible default
+    const handleComponentChange = (
+        subjectIndex: number,
+        componentIndex: number,
+        field: keyof Component,
+        value: string
+    ) => {
+        setItems(prev =>
+            prev.map((item, i) =>
+                i === subjectIndex
+                    ? {
+                        ...item,
+                        components: item.components.map((comp, ci) => {
+                            if (ci !== componentIndex) return comp;
+                            const updated = { ...comp, [field]: value };
+                            if (field === "examType" && !comp.maxMarks) {
+                                updated.maxMarks = DEFAULT_MAX_MARKS[value] ?? "";
+                            }
+                            return updated;
+                        })
+                    }
+                    : item
+            )
+        );
+    };
+
+    const usedExamTypes = (subjectIndex: number, excludingComponentIndex?: number) =>
+        items[subjectIndex]?.components
+            .filter((_, ci) => ci !== excludingComponentIndex)
+            .map(c => c.examType)
+            .filter(Boolean) ?? [];
+
+    const examTypeOptionsFor = (subjectIndex: number, componentIndex: number): string[] => {
+        const used = usedExamTypes(subjectIndex, componentIndex);
+        return EXAM_TYPE_OPTIONS.filter(opt => !used.includes(opt));
     };
 
     const handleClose = () => setEnableAddSubject(false);
@@ -62,12 +149,27 @@ export default function ExamAddSubjectDialog({
         e.preventDefault();
 
         const invalid = items.some(
-            item => !item.subjectId || !item.date || !item.minMarks || !item.maxMarks
+            item =>
+                !item.subjectId ||
+                item.components.length === 0 ||
+                item.components.some(c => !c.examType || !c.date || !c.minMarks || !c.maxMarks)
         );
         if (invalid) {
-            toast.error("Please fill all fields for each subject");
+            toast.error("Please complete every subject and add at least one exam type");
             return;
         }
+
+        // Flatten subject -> components into the flat row shape the backend expects
+        const exams = items.flatMap(item =>
+            item.components.map(comp => ({
+                classId: examGroup.classId,
+                subjectId: item.subjectId,
+                examType: comp.examType,
+                date: comp.date,
+                minMarks: comp.minMarks,
+                maxMarks: comp.maxMarks,
+            }))
+        );
 
         setPageLoading(true);
         try {
@@ -76,7 +178,7 @@ export default function ExamAddSubjectDialog({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     uniqueExamId: examGroup.uniqueExamId,
-                    exams: items,
+                    exams,
                 }),
             });
 
@@ -109,66 +211,114 @@ export default function ExamAddSubjectDialog({
 
                 <form onSubmit={handleSubmit}>
                     <FormSection title={`${title} — ${examGroup.name}`} icon={<ListPlus />} margin={true}>
-                        {items.map((item, index) => (
-                            <div key={index} className="border border-gray-200 rounded-xl mt-4">
+                        {items.map((item, subjectIndex) => (
+                            <div key={subjectIndex} className="border border-gray-200 rounded-xl mt-4">
                                 <div className="flex items-center justify-between p-2">
-                                    <p className="font-semibold font-sans">Subject: {index + 1}</p>
+                                    <div className="flex-1">
+                                        <SelectField
+                                            label={`Subject ${subjectIndex + 1}`}
+                                            name="subject"
+                                            value={item.subjectId}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                                handleSubjectChange(subjectIndex, e.target.value)
+                                            }
+                                            options={subjectOptionsFor(subjectIndex)}
+                                            required
+                                            disabled={subjectsLoading}
+                                        />
+                                    </div>
                                     {items.length > 1 && (
-                                        <button type="button" onClick={() => removeItem(index)}>
+                                        <button type="button" onClick={() => removeSubject(subjectIndex)} className="ml-2">
                                             <X size={16} className="text-gray-500 hover:text-red-500" />
                                         </button>
                                     )}
                                 </div>
                                 <hr className="text-gray-200" />
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
-                                    <SelectField
-                                        label="Subject"
-                                        name="subject"
-                                        value={item.subjectId}
-                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                                            handleItemChange(index, "subjectId", e.target.value)
-                                        }
-                                        options={subjects}
-                                        required
-                                        disabled={subjectsLoading}
-                                    />
-                                    <InputField
-                                        label="Date"
-                                        name="date"
-                                        type="date"
-                                        value={item.date}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                            handleItemChange(index, "date", e.target.value)
-                                        }
-                                        required
-                                    />
-                                    <InputField
-                                        label="Min Marks"
-                                        name="minMarks"
-                                        value={item.minMarks}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                            handleItemChange(index, "minMarks", e.target.value)
-                                        }
-                                        required
-                                    />
-                                    <InputField
-                                        label="Max Marks"
-                                        name="maxMarks"
-                                        value={item.maxMarks}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                            handleItemChange(index, "maxMarks", e.target.value)
-                                        }
-                                        required
-                                    />
-                                </div>
+
+                                {item.components.map((comp, componentIndex) => (
+                                    <div key={componentIndex} className="border-t border-gray-100">
+                                        <div className="flex items-center justify-between px-4 pt-3">
+                                            <p className="text-sm font-medium text-gray-500">Exam {componentIndex + 1}</p>
+                                            {item.components.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeComponent(subjectIndex, componentIndex)}
+                                                    aria-label="Remove exam type"
+                                                >
+                                                    <X size={14} className="text-gray-400 hover:text-red-500" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4">
+                                            <SelectField
+                                                label="Exam Type"
+                                                name="examType"
+                                                value={comp.examType}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                                    handleComponentChange(subjectIndex, componentIndex, "examType", e.target.value)
+                                                }
+                                                options={examTypeOptionsFor(subjectIndex, componentIndex)}
+                                                required
+                                                disabled={!item.subjectId}
+                                            />
+                                            <InputField
+                                                label="Date"
+                                                name="date"
+                                                type="date"
+                                                value={comp.date}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                    handleComponentChange(subjectIndex, componentIndex, "date", e.target.value)
+                                                }
+                                                required
+                                            />
+                                            <InputField
+                                                label="Min Marks"
+                                                name="minMarks"
+                                                value={comp.minMarks}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                    handleComponentChange(subjectIndex, componentIndex, "minMarks", e.target.value)
+                                                }
+                                                required
+                                            />
+                                            <InputField
+                                                label="Max Marks"
+                                                name="maxMarks"
+                                                value={comp.maxMarks}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                    handleComponentChange(subjectIndex, componentIndex, "maxMarks", e.target.value)
+                                                }
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {item.subjectId && item.components.length < EXAM_TYPE_OPTIONS.length && (
+                                    <div className="p-4 pt-0">
+                                        <Button
+                                            type="button"
+                                            text="Add Exam Type"
+                                            onClick={() => addComponent(subjectIndex)}
+                                            icon={<ListPlus size={16} />}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         ))}
 
-                        <div className="mt-4 flex gap-3">
-                            <Button type="button" text="Add More" onClick={addItem} icon={<ListPlus />} setGreen />
-                            <Button type="submit" text="Save" icon={<></>} onClick={() => {}} />
-                            <Button type="button" text="Cancel" onClick={handleClose} icon={<></>} />
-                        </div>
+                        {(subjects.length === 0 || items.length < remainingSubjectsCount()) && (
+                            <div className="mt-4 flex gap-3">
+                                <Button type="button" text="Add Subject" onClick={addSubject} icon={<ListPlus />} setGreen />
+                                <Button type="submit" text="Save" icon={<></>} onClick={() => { }} />
+                                <Button type="button" text="Cancel" onClick={handleClose} icon={<></>} />
+                            </div>
+                        )}
+                        {subjects.length > 0 && items.length >= remainingSubjectsCount() && (
+                            <div className="mt-4 flex gap-3">
+                                <Button type="submit" text="Save" icon={<></>} onClick={() => { }} />
+                                <Button type="button" text="Cancel" onClick={handleClose} icon={<></>} />
+                            </div>
+                        )}
                     </FormSection>
                 </form>
             </div>

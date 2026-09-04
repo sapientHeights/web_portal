@@ -3,19 +3,7 @@ import FormSection from "./FormSection";
 import InputField from "./InputField";
 import FormFooterActions from "./FormFooterActions";
 import toast from "react-hot-toast";
-
-type ExamDBData = {
-    id: number;
-    sessionId: string;
-    classId: string;
-    subjectId: string;
-    date: string;
-    name: string;
-    description: string;
-    minMarks: string;
-    maxMarks: string;
-    uniqueExamId: string;
-}
+import { ExamDBData } from "@/types/exam";
 
 type Props = {
     title: string;
@@ -39,7 +27,8 @@ export default function ExamDeleteDialog({ title, selectedExamData, setSelectedE
         setPageLoading(true);
 
         const dataToSend = {
-            examData: selectedExamData
+            examData: selectedExamData,
+            deleteAllExams: deleteAllExams
         }
 
         try {
@@ -83,7 +72,7 @@ export default function ExamDeleteDialog({ title, selectedExamData, setSelectedE
                                 <>
                                     <div className="grid grid-cols-2 gap-5">
                                         <InputField label="Session Id" name="sessionId" value={selectedExamData.sessionId} onChange={() => { }} disabled />
-                                        <InputField label="Name" name="name" value={selectedExamData.name} onChange={() => { }} disabled />
+                                        <InputField label="Term" name="name" value={selectedExamData.name} onChange={() => { }} disabled />
                                     </div>
                                     <InputField label="Description" name="description" value={selectedExamData.description} onChange={() => { }} disabled />
                                 </>
@@ -96,9 +85,12 @@ export default function ExamDeleteDialog({ title, selectedExamData, setSelectedE
                                     </div>
                                     <div className="grid grid-cols-2 gap-5">
                                         <InputField label="Subject" name="subjectId" value={selectedExamData.subjectId} onChange={() => { }} disabled />
+                                        <InputField label="Exam Type" name="examType" value={selectedExamData.examType} onChange={() => { }} disabled />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <InputField label="Term" name="name" value={selectedExamData.name} onChange={() => { }} disabled />
                                         <InputField type="date" label="Date" name="date" value={selectedExamData.date} onChange={() => { }} disabled />
                                     </div>
-                                    <InputField label="Name" name="name" value={selectedExamData.name} onChange={() => { }} disabled />
                                     <InputField label="Description" name="description" value={selectedExamData.description} onChange={() => { }} disabled />
                                     <div className="grid grid-cols-2 gap-5">
                                         <InputField label="Min Marks" name="minMarks" value={selectedExamData.minMarks} onChange={() => { }} disabled />

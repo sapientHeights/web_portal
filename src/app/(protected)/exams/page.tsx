@@ -2,6 +2,7 @@
 
 import Button from "@/components/ui/Button";
 import ExamAddSubjectDialog from "@/components/ui/ExamAddSubjectDialog";
+import ExamAddTypeDialog, { AddTypeTarget } from "@/components/ui/ExamAddTypeDialog";
 import ExamDeleteDialog from "@/components/ui/ExamDeleteDialog";
 import ExamUpdateDialog from "@/components/ui/ExamUpdateDialog";
 import FormFooterActions from "@/components/ui/FormFooterActions";
@@ -16,38 +17,45 @@ import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useSessions } from "@/hooks/useSessions";
 import { useSubjects } from "@/hooks/useSubjects";
-import { BadgePlus, BookOpenCheck, ChevronRight, Delete, Dices, Edit, FileText, Layers, Layers2, ListPlus, NotebookPen, Pencil, ScrollText, SquareSigma, StepBack, X } from "lucide-react";
+import { ExamDBData } from "@/types/exam";
+import { TERM_OPTIONS, EXAM_TYPE_OPTIONS, DEFAULT_MAX_MARKS } from "@/lib/examConstants";
+import { BadgePlus, BookOpenCheck, Calendar, ChevronRight, Delete, Dices, Edit, FileText, GraduationCap, Layers, Layers2, ListPlus, Pencil, ScrollText, SquareSigma, StepBack, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-type ExamItem = {
-    subjectId: string;
+type ExamComponent = {
+    examType: string;
     date: string;
     minMarks: string;
     maxMarks: string;
+};
+
+// One subject block, holding its exam-type components
+type ExamItem = {
+    subjectId: string;
+    components: ExamComponent[];
 };
 
 type ExamData = {
     sessionId: string;
     classId: string;
-    name: string;
+    term: string;   // dropdown, one of TERM_OPTIONS — sent to backend as "name"
     desc: string;
     items: ExamItem[];
 };
 
-type ExamDBData = {
-    id: number;
-    sessionId: string;
-    classId: string;
-    subjectId: string;
-    date: string;
-    name: string;
-    description: string;
-    minMarks: string;
-    maxMarks: string;
-    uniqueExamId: string;
-}
+const emptyComponent = (): ExamComponent => ({ examType: "", date: "", minMarks: "", maxMarks: "" });
+const emptyItem = (): ExamItem => ({ subjectId: "", components: [emptyComponent()] });
+
+// Colour tags for each exam type badge in the view table
+const EXAM_TYPE_STYLES: Record<string, string> = {
+    Theory: "bg-blue-100 text-blue-700",
+    Quiz: "bg-purple-100 text-purple-700",
+    Activity: "bg-green-100 text-green-700",
+    Attendance: "bg-amber-100 text-amber-700",
+    Dictation: "bg-pink-100 text-pink-700",
+};
 
 export default function Exams() {
     const router = useRouter();
@@ -60,9 +68,9 @@ export default function Exams() {
     const initialExamData: ExamData = {
         sessionId: "",
         classId: "",
-        name: "",
+        term: "",
         desc: "",
-        items: [{ subjectId: "", date: "", minMarks: "", maxMarks: "" }]
+        items: [emptyItem()]
     };
 
     const [newExamData, setNewExamData] = useState<ExamData>(initialExamData);
@@ -71,6 +79,8 @@ export default function Exams() {
     const [enableEdit, setEnableEdit] = useState(false);
     const [enableDelete, setEnableDelete] = useState(false);
     const [enableAddSubject, setEnableAddSubject] = useState(false);
+    const [enableAddType, setEnableAddType] = useState(false);
+    const [addTypeTarget, setAddTypeTarget] = useState<AddTypeTarget>();
     const [selectedExamData, setSelectedExamData] = useState<ExamDBData>();
     const [editExamInfo, setEditExamInfo] = useState(false);
     const [deleteAllExams, setDeleteAllExams] = useState(false);
@@ -106,30 +116,17 @@ export default function Exams() {
         const { name, value } = e.target;
 
         if (name === 'classId') {
-            // Class changed — clear subjects already picked in items since they depend on class
+            // Class changed — subjects depend on class, so clear every subject
+            // selection (and reset each subject back to a single blank component)
             setNewExamData(prev => ({
                 ...prev,
                 classId: value,
-                items: prev.items.map(item => ({ ...item, subjectId: "" }))
+                items: [emptyItem()]
             }));
             return;
         }
 
         setNewExamData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleMultiSelectChange = (name: string, values: string[]) => {
-        if (name == 'classes') {
-            setNewExamData(prev => ({
-                ...prev,
-                subjects: []
-            }));
-        }
-
-        setNewExamData(prev => ({
-            ...prev,
-            [name]: values
-        }));
     };
 
     const reset = (showToast?: boolean) => {
@@ -185,16 +182,129 @@ export default function Exams() {
         }
     }
 
+    // Subjects already picked in other subject blocks, so the same subject
+    // can't be selected twice within one term
+    const usedSubjectIds = (excludingSubjectIndex?: number) =>
+        newExamData.items
+            .filter((_, i) => i !== excludingSubjectIndex)
+            .map(item => item.subjectId)
+            .filter(Boolean);
+
+    const subjectOptionsFor = (subjectIndex: number): string[] => {
+        const used = usedSubjectIds(subjectIndex);
+        return subjects.filter(s => !used.includes(s));
+    };
+
+    // Subject-level helpers
+    const addSubject = () => {
+        if (subjects.length > 0 && newExamData.items.length >= subjects.length) return;
+
+        setNewExamData(prev => ({
+            ...prev,
+            items: [...prev.items, emptyItem()]
+        }));
+    };
+
+    const removeSubject = (subjectIndex: number) => {
+        setNewExamData(prev => ({
+            ...prev,
+            items: prev.items.filter((_, i) => i !== subjectIndex)
+        }));
+    };
+
+    const handleSubjectChange = (subjectIndex: number, subjectId: string) => {
+        setNewExamData(prev => ({
+            ...prev,
+            items: prev.items.map((item, i) =>
+                i === subjectIndex ? { ...item, subjectId } : item
+            )
+        }));
+    };
+
+    // Component-level (exam type) helpers, scoped to a subject
+    const addComponent = (subjectIndex: number) => {
+        const item = newExamData.items[subjectIndex];
+        if (!item?.subjectId || item.components.length >= EXAM_TYPE_OPTIONS.length) return;
+
+        setNewExamData(prev => ({
+            ...prev,
+            items: prev.items.map((item, i) =>
+                i === subjectIndex
+                    ? { ...item, components: [...item.components, emptyComponent()] }
+                    : item
+            )
+        }));
+    };
+
+    const removeComponent = (subjectIndex: number, componentIndex: number) => {
+        setNewExamData(prev => ({
+            ...prev,
+            items: prev.items.map((item, i) =>
+                i === subjectIndex
+                    ? { ...item, components: item.components.filter((_, ci) => ci !== componentIndex) }
+                    : item
+            )
+        }));
+    };
+
+    // Updating a component; when the field being changed is examType and
+    // maxMarks hasn't been manually set yet, prefill a sensible default
+    const handleComponentChange = (
+        subjectIndex: number,
+        componentIndex: number,
+        field: keyof ExamComponent,
+        value: string
+    ) => {
+        setNewExamData(prev => ({
+            ...prev,
+            items: prev.items.map((item, i) =>
+                i === subjectIndex
+                    ? {
+                        ...item,
+                        components: item.components.map((comp, ci) => {
+                            if (ci !== componentIndex) return comp;
+                            const updated = { ...comp, [field]: value };
+                            if (field === "examType" && !comp.maxMarks) {
+                                updated.maxMarks = DEFAULT_MAX_MARKS[value] ?? "";
+                            }
+                            return updated;
+                        })
+                    }
+                    : item
+            )
+        }));
+    };
+
+    // Exam types already used within a given subject, so the dropdown for a
+    // new/edited component only offers the remaining ones
+    const usedExamTypes = (subjectIndex: number, excludingComponentIndex?: number) =>
+        newExamData.items[subjectIndex]?.components
+            .filter((_, ci) => ci !== excludingComponentIndex)
+            .map(c => c.examType)
+            .filter(Boolean) ?? [];
+
+    const examTypeOptionsFor = (subjectIndex: number, componentIndex: number): string[] => {
+        const used = usedExamTypes(subjectIndex, componentIndex);
+        return EXAM_TYPE_OPTIONS.filter(opt => !used.includes(opt));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (category === 'add') {
-            if (newExamData === initialExamData) {
-                toast.error("Please fill all the required data");
-                return;
-            }
             if (!newExamData.classId) {
                 toast.error("Please select a class");
+                return;
+            }
+            if (!newExamData.term) {
+                toast.error("Please select a term");
+                return;
+            }
+            const hasIncompleteSubject = newExamData.items.some(
+                item => !item.subjectId || item.components.length === 0
+            );
+            if (hasIncompleteSubject) {
+                toast.error("Please complete every subject and add at least one exam type");
                 return;
             }
         }
@@ -208,6 +318,18 @@ export default function Exams() {
         setPageLoading(true);
         try {
             if (category === 'add') {
+                // Flatten subject -> components into the flat row shape the backend expects
+                const exams = newExamData.items.flatMap(item =>
+                    item.components.map(comp => ({
+                        classId: newExamData.classId,
+                        subjectId: item.subjectId,
+                        examType: comp.examType,
+                        date: comp.date,
+                        minMarks: comp.minMarks,
+                        maxMarks: comp.maxMarks,
+                    }))
+                );
+
                 const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/createExam.php`, {
                     method: 'POST',
                     headers: {
@@ -215,14 +337,9 @@ export default function Exams() {
                     },
                     body: JSON.stringify({
                         sessionId: newExamData.sessionId,
-                        name: newExamData.name,
+                        name: newExamData.term,
                         desc: newExamData.desc,
-                        // classId is selected once at the top level;
-                        // fan it out to each item so the backend contract is unchanged
-                        exams: newExamData.items.map(item => ({
-                            ...item,
-                            classId: newExamData.classId
-                        }))
+                        exams
                     })
                 });
 
@@ -232,7 +349,7 @@ export default function Exams() {
                     reset();
                 }
                 else {
-                    toast.error("Some error occurred!");
+                    toast.error(data.message);
                 }
             }
             else if (category === 'reportGen') {
@@ -297,6 +414,17 @@ export default function Exams() {
         setEnableAddSubject(true);
     }
 
+    // Opens the "add one more exam type" dialog for an existing subject within a term
+    const handleAddType = (exam: ExamDBData, subjectId: string, existingExamTypes: string[]) => {
+        setAddTypeTarget({
+            uniqueExamId: exam.uniqueExamId,
+            classId: exam.classId,
+            subjectId,
+            existingExamTypes
+        });
+        setEnableAddType(true);
+    }
+
     const handleMarksAnalysis = async (examData: ExamDBData) => {
         setPageLoading(true);
         try {
@@ -328,45 +456,17 @@ export default function Exams() {
         }
     }
 
-    const addItem = () => {
-        setNewExamData(prev => ({
-            ...prev,
-            items: [
-                ...prev.items,
-                {
-                    subjectId: "",
-                    date: "",
-                    minMarks: "",
-                    maxMarks: ""
-                }
-            ]
-        }));
-    };
-
-    const removeItem = (index: number) => {
-        setNewExamData(prev => ({
-            ...prev,
-            items: prev.items.filter((_, i) => i !== index)
-        }));
-    };
-
-    const handleItemChange = (index: number, field: keyof ExamItem, value: string) => {
-        const updatedItems = [...newExamData.items];
-        updatedItems[index][field] = value;
-
-        setNewExamData(prev => ({
-            ...prev,
-            items: updatedItems
-        }));
-    };
-
+    // Group first by term (uniqueExamId), then by subject, for the view table
     const groupedExams = examsData?.reduce((acc, exam) => {
         if (!acc[exam.uniqueExamId]) {
-            acc[exam.uniqueExamId] = [];
+            acc[exam.uniqueExamId] = {};
         }
-        acc[exam.uniqueExamId].push(exam);
+        if (!acc[exam.uniqueExamId][exam.subjectId]) {
+            acc[exam.uniqueExamId][exam.subjectId] = [];
+        }
+        acc[exam.uniqueExamId][exam.subjectId].push(exam);
         return acc;
-    }, {} as Record<string, ExamDBData[]>);
+    }, {} as Record<string, Record<string, ExamDBData[]>>);
 
     const loading = pageLoading || sessionsLoading || classesLoading || subjectsLoading;
     if (loading) {
@@ -394,46 +494,97 @@ export default function Exams() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-5">
                             <SelectField label="Session" name="sessionId" value={newExamData.sessionId} onChange={handleChange} options={sessions} required />
                             {category === 'add' && (
-                                <InputField label="Exam Name" type="text" name="name" value={newExamData.name} onChange={handleChange} maxLength={80} required />
+                                <SelectField label="Class" name="classId" value={newExamData.classId} onChange={handleChange} options={classes} required />
                             )}
                             {category === 'add' && (
-                                <SelectField label="Class" name="classId" value={newExamData.classId} onChange={handleChange} options={classes} required />
+                                <SelectField label="Term" name="term" value={newExamData.term} onChange={handleChange} options={TERM_OPTIONS} required />
                             )}
                             {category === 'reportGen' && (
                                 <SelectField label="Class" name="class" value={classForReport} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setClassForReport(e.target.value)} options={classes} required />
                             )}
                         </div>
                         {category === 'add' && (
-                            <TextAreaField label="Exam Description" name="desc" value={newExamData.desc} onChange={handleChange} maxLength={200} />
+                            <TextAreaField label="Term Description" name="desc" value={newExamData.desc} onChange={handleChange} maxLength={200} />
                         )}
                         {category === 'add' && (
                             <>
-                                {newExamData.items.map((item, index) => (
-                                    <div key={index} className="border border-gray-200 rounded-xl mt-4">
+                                {newExamData.items.map((item, subjectIndex) => (
+                                    <div key={subjectIndex} className="border border-gray-200 rounded-xl mt-4">
                                         <div className="flex items-center justify-between p-2">
-                                            <p className="font-semibold font-sans">Exam: {index + 1}</p>
+                                            <div className="flex-1">
+                                                <SelectField
+                                                    label={`Subject ${subjectIndex + 1}`}
+                                                    name="subject"
+                                                    value={item.subjectId}
+                                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleSubjectChange(subjectIndex, e.target.value)}
+                                                    options={subjectOptionsFor(subjectIndex)}
+                                                    required
+                                                    disabled={newExamData.classId === ''}
+                                                />
+                                            </div>
                                             {newExamData.items.length > 1 && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => removeItem(index)}
-                                                    aria-label="Remove exam row"
+                                                    onClick={() => removeSubject(subjectIndex)}
+                                                    aria-label="Remove subject"
+                                                    className="ml-2"
                                                 >
                                                     <X size={16} className="text-gray-500 hover:text-red-500" />
                                                 </button>
                                             )}
                                         </div>
                                         <hr className="text-gray-200" />
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
-                                            <SelectField label="Subject" name="subject" value={item.subjectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleItemChange(index, "subjectId", e.target.value)} options={subjects} required disabled={newExamData.classId === ''} />
-                                            <InputField label="Date" name="date" type="date" value={item.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "date", e.target.value)} required />
-                                            <InputField label="Min Marks" name="minMarks" value={item.minMarks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "minMarks", e.target.value)} required />
-                                            <InputField label="Max Marks" name="maxMarks" value={item.maxMarks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleItemChange(index, "maxMarks", e.target.value)} required />
-                                        </div>
+
+                                        {item.components.map((comp, componentIndex) => (
+                                            <div key={componentIndex} className="border-t border-gray-100">
+                                                <div className="flex items-center justify-between px-4 pt-3">
+                                                    <p className="text-sm font-medium text-gray-500">
+                                                        Exam {componentIndex + 1}
+                                                    </p>
+                                                    {item.components.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeComponent(subjectIndex, componentIndex)}
+                                                            aria-label="Remove exam type"
+                                                        >
+                                                            <X size={14} className="text-gray-400 hover:text-red-500" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4">
+                                                    <SelectField
+                                                        label="Exam Type"
+                                                        name="examType"
+                                                        value={comp.examType}
+                                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleComponentChange(subjectIndex, componentIndex, "examType", e.target.value)}
+                                                        options={examTypeOptionsFor(subjectIndex, componentIndex)}
+                                                        required
+                                                        disabled={!item.subjectId}
+                                                    />
+                                                    <InputField label="Date" name="date" type="date" value={comp.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleComponentChange(subjectIndex, componentIndex, "date", e.target.value)} required />
+                                                    <InputField label="Min Marks" name="minMarks" value={comp.minMarks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleComponentChange(subjectIndex, componentIndex, "minMarks", e.target.value)} required />
+                                                    <InputField label="Max Marks" name="maxMarks" value={comp.maxMarks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleComponentChange(subjectIndex, componentIndex, "maxMarks", e.target.value)} required />
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {item.subjectId && item.components.length < EXAM_TYPE_OPTIONS.length && (
+                                            <div className="p-4 pt-0">
+                                                <Button
+                                                    type="button"
+                                                    text="Add Exam Type"
+                                                    onClick={() => addComponent(subjectIndex)}
+                                                    icon={<ListPlus size={16} />}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
-                                <div className="mt-2">
-                                    <Button type="button" text="Add More" onClick={addItem} icon={<ListPlus />} setGreen />
-                                </div>
+                                {(subjects.length === 0 || newExamData.items.length < subjects.length) && (
+                                    <div className="mt-2">
+                                        <Button type="button" text="Add Subject" onClick={addSubject} icon={<ListPlus />} setGreen />
+                                    </div>
+                                )}
                             </>
                         )}
 
@@ -451,91 +602,145 @@ export default function Exams() {
             </div>
 
             {category != 'reportGen' && examsData && examsData.length > 0 && (
-                <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
+                <div className="max-w-6xl mx-auto mb-10">
                     <FormSection title="Exams Data" icon={<Layers />} margin={false}>
+                        <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+                            {groupedExams &&
+                                Object.entries(groupedExams).map(([groupId, subjectsMap]) => {
+                                    const subjectEntries = Object.entries(subjectsMap);
+                                    const first = subjectEntries[0][1][0];
 
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full border border-gray-200 rounded-xl overflow-hidden">
-                                <thead className="bg-gray-100 text-gray-700 text-sm uppercase">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">Session ID</th>
-                                        <th className="px-4 py-3 text-left">Class</th>
-                                        <th className="px-4 py-3 text-left">Exam Name</th>
-                                        <th className="px-4 py-3 text-left">Description</th>
-                                        <th className="px-4 py-3 text-left">Min Marks</th>
-                                        <th className="px-4 py-3 text-left">Max Marks</th>
-                                        <th className="px-4 py-3 text-left">Subject</th>
-                                        <th className="px-4 py-3 text-left">Date</th>
-                                        <th className="px-2 py-3 text-left"></th>
-                                    </tr>
-                                </thead>
-
-                                <tbody className="text-gray-600 text-sm">
-                                    {groupedExams &&
-                                        Object.entries(groupedExams).map(([groupId, exams], index) => {
-                                            const first = exams[0];
-
-                                            return (
-                                                <Fragment key={groupId}>
-                                                    {/* Group Header Row */}
-                                                    <tr className="bg-gray-200 font-semibold">
-                                                        <td className="px-4 py-3">{first.sessionId}</td>
-                                                        <td className="px-4 py-3">-</td>
-                                                        <td className="px-4 py-3">
+                                    return (
+                                        <div key={groupId} className="bg-gray-50 rounded-3xl shadow-lg overflow-hidden">
+                                            {/* Term header bar */}
+                                            <div className="flex flex-wrap items-center justify-between gap-4 bg-linear-to-r from-indigo-100 to-blue-100 px-6 py-4">
+                                                <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
+                                                    <div>
+                                                        <p className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wide">Term</p>
+                                                        <p className="font-bold text-gray-800 flex items-center gap-1.5">
+                                                            <ScrollText size={15} />
                                                             {first.name}
-                                                        </td>
-                                                        <td className="px-4 py-3">{first.description}</td>
-                                                        <td className="px-4 py-3">-</td>
-                                                        <td className="px-4 py-3">-</td>
-                                                        <td className="px-4 py-3">-</td>
-                                                        <td className="px-4 py-3">-</td>
-                                                        <td className="px-4 py-3">
-                                                            {category === 'view' && (
-                                                                <span className="flex gap-2">
-                                                                    <ListPlus onClick={() => handleAddSubject(first)} size={16} className="text-green-600" />
-                                                                    <Edit onClick={() => handleEdit(first, true)} size={16} />
-                                                                    <Delete onClick={() => handleDelete(first, true)} size={16} />
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td></td>
-                                                    </tr>
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wide">Session</p>
+                                                        <p className="font-medium text-gray-700">{first.sessionId}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wide">Class</p>
+                                                        <p className="font-medium text-gray-700 flex items-center gap-1.5">
+                                                            <GraduationCap size={15} />
+                                                            {first.classId}
+                                                        </p>
+                                                    </div>
+                                                    {first.description && (
+                                                        <div>
+                                                            <p className="text-[11px] font-semibold text-indigo-500 uppercase tracking-wide">Description</p>
+                                                            <p className="text-gray-600 italic max-w-xs truncate">{first.description}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
 
-                                                    {/* Child Rows */}
-                                                    {exams.map((exam, index) => (
-                                                        <tr key={index} className="border-t hover:bg-gray-50">
-                                                            <td className="px-4 py-3"></td>
-                                                            <td className="px-4 py-3">{exam.classId}</td>
-                                                            <td className="px-4 py-3"></td>
-                                                            <td className="px-4 py-3"></td>
-                                                            <td className="px-4 py-3">{exam.minMarks}</td>
-                                                            <td className="px-4 py-3">{exam.maxMarks}</td>
-                                                            <td className="px-4 py-3">{exam.subjectId}</td>
-                                                            <td className="px-4 py-3">
-                                                                {new Date(exam.date).toLocaleDateString()}
-                                                            </td>
+                                                {category === 'view' && (
+                                                    <div className="flex items-center gap-3 bg-white/70 rounded-full px-3 py-1.5 shadow-sm">
+                                                        <button type="button" onClick={() => handleAddSubject(first)} title="Add Subject" className="text-green-600 hover:text-green-700">
+                                                            <ListPlus size={17} />
+                                                        </button>
+                                                        <button type="button" onClick={() => handleEdit(first, true)} title="Edit Term" className="text-gray-500 hover:text-gray-800">
+                                                            <Edit size={16} />
+                                                        </button>
+                                                        <button type="button" onClick={() => handleDelete(first, true)} title="Delete Term" className="text-red-500 hover:text-red-700">
+                                                            <Delete size={16} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
 
-                                                            {category === 'view' && (
-                                                                <td className="px-4 py-3">
-                                                                    <span className="flex gap-2">
-                                                                        <Edit onClick={() => handleEdit(exam, false)} size={16} />
-                                                                        <Delete onClick={() => handleDelete(exam)} size={16} />
-                                                                    </span>
-                                                                </td>
-                                                            )}
-
-                                                            {category === 'analysis' && (
-                                                                <td className="px-4 py-3">
-                                                                    <ChevronRight onClick={() => handleMarksAnalysis(exam)} size={16} />
-                                                                </td>
+                                            {/* Subject / exam-type table */}
+                                            <div className="overflow-x-auto">
+                                                <table className="min-w-full text-sm">
+                                                    <thead className="bg-gray-100 text-gray-500 text-xs uppercase tracking-wide">
+                                                        <tr>
+                                                            <th className="px-6 py-2.5 text-left w-40">Subject</th>
+                                                            <th className="px-4 py-2.5 text-left w-32">Exam Type</th>
+                                                            <th className="px-4 py-2.5 text-left w-20">Min</th>
+                                                            <th className="px-4 py-2.5 text-left w-20">Max</th>
+                                                            <th className="px-4 py-2.5 text-left w-32">Date</th>
+                                                            {(category === 'view' || category === 'analysis') && (
+                                                                <th className="px-4 py-2.5 text-right w-24">Actions</th>
                                                             )}
                                                         </tr>
-                                                    ))}
-                                                </Fragment>
-                                            );
-                                        })}
-                                </tbody>
-                            </table>
+                                                    </thead>
+                                                    <tbody>
+                                                        {subjectEntries.map(([subjectId, exams], subjectIdx) => (
+                                                            <Fragment key={subjectId}>
+                                                                {exams.map((exam, index) => (
+                                                                    <tr
+                                                                        key={exam.id ?? index}
+                                                                        className={`border-t border-gray-100 hover:bg-blue-50/50 transition-colors ${subjectIdx % 2 === 1 ? 'bg-gray-50/60' : ''}`}
+                                                                    >
+                                                                        {index === 0 && (
+                                                                            <td
+                                                                                rowSpan={exams.length}
+                                                                                className="px-6 py-3 align-top font-semibold text-gray-800 border-r border-gray-100"
+                                                                            >
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span>{subjectId}</span>
+                                                                                    {category === 'view' && exams.length < EXAM_TYPE_OPTIONS.length && (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleAddType(exam, subjectId, exams.map(e => e.examType))}
+                                                                                            title="Add Exam Type"
+                                                                                            className="text-green-600 hover:text-green-700"
+                                                                                        >
+                                                                                            <ListPlus size={14} />
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </td>
+                                                                        )}
+                                                                        <td className="px-4 py-3">
+                                                                            <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${EXAM_TYPE_STYLES[exam.examType] ?? 'bg-gray-100 text-gray-600'}`}>
+                                                                                {exam.examType || '—'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 text-gray-600">{exam.minMarks}</td>
+                                                                        <td className="px-4 py-3 text-gray-600">{exam.maxMarks}</td>
+                                                                        <td className="px-4 py-3 text-gray-500 flex items-center gap-1.5">
+                                                                            <Calendar size={13} className="text-gray-400" />
+                                                                            {new Date(exam.date).toLocaleDateString()}
+                                                                        </td>
+
+                                                                        {category === 'view' && (
+                                                                            <td className="px-4 py-3">
+                                                                                <span className="flex justify-end gap-3">
+                                                                                    <button type="button" onClick={() => handleEdit(exam, false)} title="Edit" className="text-gray-500 hover:text-gray-800">
+                                                                                        <Edit size={15} />
+                                                                                    </button>
+                                                                                    <button type="button" onClick={() => handleDelete(exam)} title="Delete" className="text-red-500 hover:text-red-700">
+                                                                                        <Delete size={15} />
+                                                                                    </button>
+                                                                                </span>
+                                                                            </td>
+                                                                        )}
+
+                                                                        {category === 'analysis' && (
+                                                                            <td className="px-4 py-3 text-right">
+                                                                                <button type="button" onClick={() => handleMarksAnalysis(exam)} title="Analyze" className="text-gray-500 hover:text-indigo-600 inline-flex">
+                                                                                    <ChevronRight size={17} />
+                                                                                </button>
+                                                                            </td>
+                                                                        )}
+                                                                    </tr>
+                                                                ))}
+                                                            </Fragment>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                         </div>
                     </FormSection>
                 </div>
@@ -557,7 +762,22 @@ export default function Exams() {
                         classId: selectedExamData.classId,
                         name: selectedExamData.name
                     }}
+                    existingSubjectIds={
+                        groupedExams?.[selectedExamData.uniqueExamId]
+                            ? Object.keys(groupedExams[selectedExamData.uniqueExamId])
+                            : []
+                    }
                     setEnableAddSubject={setEnableAddSubject}
+                    setPageLoading={setPageLoading}
+                    getExamsData={getExamsData}
+                />
+            )}
+
+            {enableAddType && addTypeTarget && (
+                <ExamAddTypeDialog
+                    title="Add Exam Type"
+                    target={addTypeTarget}
+                    setEnableAddType={setEnableAddType}
                     setPageLoading={setPageLoading}
                     getExamsData={getExamsData}
                 />

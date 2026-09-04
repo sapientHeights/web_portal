@@ -5,19 +5,7 @@ import FormSection from "./FormSection";
 import InputField from "./InputField";
 import FormFooterActions from "./FormFooterActions";
 import toast from "react-hot-toast";
-
-type ExamDBData = {
-    id: number;
-    sessionId: string;
-    classId: string;
-    subjectId: string;
-    date: string;
-    name: string;
-    description: string;
-    minMarks: string;
-    maxMarks: string;
-    uniqueExamId: string;
-}
+import { ExamDBData } from "@/types/exam";
 
 type Props = {
     title: string;
@@ -55,7 +43,7 @@ export default function ExamUpdateDialog({ title, selectedExamData, setSelectedE
             return;
         }
 
-        if(Number(selectedExamData.minMarks) > Number(selectedExamData.maxMarks)){
+        if (Number(selectedExamData.minMarks) > Number(selectedExamData.maxMarks)) {
             toast.error("Please enter valid exam marks");
             return;
         }
@@ -103,20 +91,23 @@ export default function ExamUpdateDialog({ title, selectedExamData, setSelectedE
                         <div className="grid grid-cols-1 gap-5">
                             <div className="grid grid-cols-2 gap-5">
                                 <InputField label="Session Id" name="sessionId" value={selectedExamData.sessionId} onChange={() => { }} disabled={!editExamInfo} />
-                                <InputField label="Name" name="name" value={selectedExamData.name} onChange={handleChange} maxLength={80} disabled={!editExamInfo} />
+                                <InputField label="Term" name="name" value={selectedExamData.name} onChange={handleChange} maxLength={80} disabled={!editExamInfo} />
                             </div>
                             <InputField label="Description" name="description" value={selectedExamData.description} onChange={handleChange} maxLength={200} disabled={!editExamInfo} />
                             {!editExamInfo && (
                                 <>
-                                <div className="grid grid-cols-2 gap-5">
-                                    <InputField label="Subject" name="subjectId" value={selectedExamData.subjectId} onChange={() => {}} disabled />
-                                    <InputField label="Class" name="classId" value={selectedExamData.classId} onChange={() => { }} disabled />
-                                </div>
-                                <div className="grid grid-cols-3 gap-5">
-                                    <InputField type="date" label="Date" name="date" value={selectedExamData.date} onChange={() => { }} />
-                                    <InputField label="Min Marks" name="minMarks" value={selectedExamData.minMarks} onChange={handleChange} required />
-                                    <InputField label="Max Marks" name="maxMarks" value={selectedExamData.maxMarks} onChange={handleChange} required />
-                                </div>
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <InputField label="Subject" name="subjectId" value={selectedExamData.subjectId} onChange={() => { }} disabled />
+                                        <InputField label="Class" name="classId" value={selectedExamData.classId} onChange={() => { }} disabled />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <InputField label="Exam Type" name="examType" value={selectedExamData.examType} onChange={() => { }} disabled />
+                                        <InputField type="date" label="Date" name="date" value={selectedExamData.date} onChange={handleChange} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <InputField label="Min Marks" name="minMarks" value={selectedExamData.minMarks} onChange={handleChange} required />
+                                        <InputField label="Max Marks" name="maxMarks" value={selectedExamData.maxMarks} onChange={handleChange} required />
+                                    </div>
                                 </>
                             )}
                         </div>
