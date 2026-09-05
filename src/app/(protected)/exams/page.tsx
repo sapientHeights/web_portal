@@ -17,12 +17,14 @@ import { useUser } from "@/context/UserContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useSessions } from "@/hooks/useSessions";
 import { useSubjects } from "@/hooks/useSubjects";
+import { useSections } from "@/hooks/useSections";
 import { ExamDBData } from "@/types/exam";
-import { TERM_OPTIONS, EXAM_TYPE_OPTIONS, DEFAULT_MAX_MARKS } from "@/lib/examConstants";
-import { BadgePlus, BookOpenCheck, Calendar, ChevronRight, Delete, Dices, Edit, FileText, GraduationCap, Layers, Layers2, ListPlus, Pencil, ScrollText, SquareSigma, StepBack, X } from "lucide-react";
+import { TERM_OPTIONS, EXAM_TYPE_OPTIONS, DEFAULT_MAX_MARKS, EXAM_TYPE_STYLES } from "@/lib/examConstants";
+import { BadgePlus, BookOpenCheck, Calendar, ChevronRight, Delete, Dices, Edit, FileText, Filter, GraduationCap, Layers, Layers2, ListPlus, NotebookPen, Pencil, ScrollText, SquarePercent, SquareSigma, StepBack, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import ExamMarksEntryDialog from "@/components/ui/ExamMarksEntryDialog";
 
 type ExamComponent = {
     examType: string;
@@ -40,7 +42,7 @@ type ExamItem = {
 type ExamData = {
     sessionId: string;
     classId: string;
-    term: string;   // dropdown, one of TERM_OPTIONS — sent to backend as "name"
+    term: string;
     desc: string;
     items: ExamItem[];
 };
@@ -48,14 +50,9 @@ type ExamData = {
 const emptyComponent = (): ExamComponent => ({ examType: "", date: "", minMarks: "", maxMarks: "" });
 const emptyItem = (): ExamItem => ({ subjectId: "", components: [emptyComponent()] });
 
-// Colour tags for each exam type badge in the view table
-const EXAM_TYPE_STYLES: Record<string, string> = {
-    Theory: "bg-blue-100 text-blue-700",
-    Quiz: "bg-purple-100 text-purple-700",
-    Activity: "bg-green-100 text-green-700",
-    Attendance: "bg-amber-100 text-amber-700",
-    Dictation: "bg-pink-100 text-pink-700",
-};
+// Sentinel value for "no class filter applied" — kept as its own constant so
+// the comparison stays type-safe/searchable rather than a bare magic string
+const ALL_CLASSES = "All";
 
 export default function Exams() {
     const router = useRouter();
@@ -76,6 +73,10 @@ export default function Exams() {
     const [newExamData, setNewExamData] = useState<ExamData>(initialExamData);
     const [examsData, setExamsData] = useState<ExamDBData[]>();
 
+    // Class filter applied on top of the already-loaded Exams Data list,
+    // used for View Exams and Marks Analysis only. Defaults to "show all".
+    const [classFilterForData, setClassFilterForData] = useState(ALL_CLASSES);
+
     const [enableEdit, setEnableEdit] = useState(false);
     const [enableDelete, setEnableDelete] = useState(false);
     const [enableAddSubject, setEnableAddSubject] = useState(false);
@@ -87,6 +88,15 @@ export default function Exams() {
 
     const { subjects, isLoading: subjectsLoading } = useSubjects(newExamData.classId);
     const [classForReport, setClassForReport] = useState('');
+
+    const { sections, isLoading: sectionsLoading } = useSections(newExamData.classId);
+    const [sectionForMarksEntry, setSectionForMarksEntry] = useState('');
+    const [subjectForMarksEntry, setSubjectForMarksEntry] = useState('');
+
+    // Holds the full exam row (subject/type/marks/date) so the marks-entry
+    // dialog has everything it needs without re-fetching
+    const [selectedExamForMarksEntry, setSelectedExamForMarksEntry] = useState<ExamDBData>();
+    const [showMarksEntryDialog, setShowMarksEntryDialog] = useState(false);
 
     const goBack = () => {
         setPageLoading(true);
@@ -105,6 +115,13 @@ export default function Exams() {
     useEffect(() => {
         setActiveSession();
     }, [activeSession])
+
+    // Reset the class filter back to "All" whenever a fresh data set is
+    // loaded, so a stale selection from a previous search doesn't silently
+    // hide everything
+    useEffect(() => {
+        setClassFilterForData(ALL_CLASSES);
+    }, [examsData]);
 
     const handleCategoryClick = (category: string) => {
         reset(false);
@@ -152,6 +169,15 @@ export default function Exams() {
             setNewExamData(initialExamData);
             setActiveSession();
             setClassForReport('');
+        } else if (category === 'submitMarks') {
+            if (newExamData.sessionId === '' && newExamData.classId === '' && sectionForMarksEntry === '' && subjectForMarksEntry === '') {
+                if (showToast) toast.error("Nothing to clear!");
+                return;
+            }
+            setNewExamData(initialExamData);
+            setActiveSession();
+            setSectionForMarksEntry('');
+            setSubjectForMarksEntry('');
         }
 
         if (showToast) toast.success("Fields cleared!");
@@ -176,6 +202,35 @@ export default function Exams() {
                 return;
             }
             setExamsData(data.data);
+        }
+        else {
+            toast.error("Some error occurred!");
+        }
+    }
+
+    const getFilteredExamsData = async () => {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/viewExams.php`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                sessionId: newExamData.sessionId,
+            }),
+        });
+
+        const data = await res.json();
+        if (!data.error) {
+            if (data.data.length === 0) {
+                toast.error("No data available");
+                return;
+            }
+            const examsData = data.data;
+            const filteredExams = examsData.filter((exam: ExamDBData) => exam.sessionId === newExamData.sessionId && exam.classId === newExamData.classId && exam.subjectId === subjectForMarksEntry);
+            if (filteredExams.length === 0) {
+                toast.error("No Exams available");
+            }
+            setExamsData(filteredExams);
         }
         else {
             toast.error("Some error occurred!");
@@ -314,6 +369,12 @@ export default function Exams() {
                 return;
             }
         }
+        else if (category === 'submitMarks') {
+            if (!newExamData.sessionId || !newExamData.classId || !sectionForMarksEntry || !subjectForMarksEntry) {
+                toast.error("Please select session, class, section and subject");
+                return;
+            }
+        }
 
         setPageLoading(true);
         try {
@@ -383,7 +444,9 @@ export default function Exams() {
                 URL.revokeObjectURL(url);
                 toast.success("Report cards downloaded!");
             }
-
+            else if (category === 'submitMarks') {
+                getFilteredExamsData();
+            }
             else {
                 getExamsData();
             }
@@ -445,7 +508,7 @@ export default function Exams() {
                 router.push('/exams/marksAnalysis');
             }
             else {
-                toast.error("No Data available - Some error occurred!");
+                toast.error(data.message || "Some error occurred!");
                 setPageLoading(false);
             }
         }
@@ -454,6 +517,11 @@ export default function Exams() {
             console.error(err);
             setPageLoading(false);
         }
+    }
+
+    const handleMarksEntry = (examData: ExamDBData) => {
+        setSelectedExamForMarksEntry(examData);
+        setShowMarksEntryDialog(true);
     }
 
     // Group first by term (uniqueExamId), then by subject, for the view table
@@ -468,6 +536,21 @@ export default function Exams() {
         return acc;
     }, {} as Record<string, Record<string, ExamDBData[]>>);
 
+    // Distinct classes actually present in the loaded data — feeds the filter
+    // chips, so they never offer a class with no matching rows
+    const availableClassesForFilter = examsData
+        ? Array.from(new Set(examsData.map(exam => exam.classId))).sort()
+        : [];
+
+    // Term groups, filtered down to the selected class (or everything, if "All")
+    const visibleGroupedEntries = groupedExams
+        ? Object.entries(groupedExams).filter(([, subjectsMap]) => {
+            if (classFilterForData === ALL_CLASSES) return true;
+            const first = Object.values(subjectsMap)[0][0];
+            return first.classId === classFilterForData;
+        })
+        : [];
+
     const loading = pageLoading || sessionsLoading || classesLoading || subjectsLoading;
     if (loading) {
         return <FullPageLoader />
@@ -479,21 +562,22 @@ export default function Exams() {
             <UserInfo name={user ? user.name : 'Name'} role={user ? user.desc : 'Position'} />
             <Header title='Sapient Heights' info='Manage Exams for Sapient Heights' />
 
-            <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
-                <div className="grid grid-cols-1 md:grid-cols-4 sm:gap-15 gap-5">
+            <div className="max-w-7xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
+                <div className="grid grid-cols-1 md:grid-cols-5 sm:gap-10 gap-3">
                     <Button icon={<Pencil />} text="Create Exam" onClick={() => handleCategoryClick('add')} setGreen={category === 'add'} />
                     <Button icon={<Layers2 />} text="View Exams" onClick={() => handleCategoryClick('view')} setGreen={category === 'view'} />
+                    <Button icon={<NotebookPen />} text="Submit Marks" onClick={() => handleCategoryClick('submitMarks')} setGreen={category === 'submitMarks'} />
                     <Button icon={<Dices />} text="Marks Analysis" onClick={() => handleCategoryClick('analysis')} setGreen={category === 'analysis'} />
-                    <Button icon={<ScrollText />} text="Report Generation" onClick={() => handleCategoryClick('reportGen')} setGreen={category === 'reportGen'} />
+                    {/* <Button icon={<ScrollText />} text="Report Generation" onClick={() => handleCategoryClick('reportGen')} setGreen={category === 'reportGen'} /> */}
                 </div>
             </div>
 
             <div className="max-w-6xl mx-auto bg-gray-50 rounded-4xl shadow-xl p-6 md:p-10 mb-10">
                 <form onSubmit={handleSubmit}>
-                    <FormSection title={category === 'add' ? `Enter Exam Details` : category === 'view' ? 'View Exams' : category === 'analysis' ? 'Analyze Marks' : 'Generate Report Cards'} icon={category === 'add' ? <BadgePlus /> : category === 'view' ? <BookOpenCheck /> : category === 'analysis' ? <SquareSigma /> : <FileText />} margin={true}>
+                    <FormSection title={category === 'add' ? `Enter Exam Details` : category === 'view' ? 'View Exams' : category === 'analysis' ? 'Analyze Marks' : category === 'reportGen' ? 'Generate Report Cards' : 'Enter Marks'} icon={category === 'add' ? <BadgePlus /> : category === 'view' ? <BookOpenCheck /> : category === 'analysis' ? <SquareSigma /> : category === 'reportGen' ? <FileText /> : <SquarePercent />} margin={true}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-5">
                             <SelectField label="Session" name="sessionId" value={newExamData.sessionId} onChange={handleChange} options={sessions} required />
-                            {category === 'add' && (
+                            {(category === 'add' || category === 'submitMarks') && (
                                 <SelectField label="Class" name="classId" value={newExamData.classId} onChange={handleChange} options={classes} required />
                             )}
                             {category === 'add' && (
@@ -502,6 +586,13 @@ export default function Exams() {
                             {category === 'reportGen' && (
                                 <SelectField label="Class" name="class" value={classForReport} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setClassForReport(e.target.value)} options={classes} required />
                             )}
+                            {category === 'submitMarks' && (
+                                <>
+                                    <SelectField label="Section" name="section" value={sectionForMarksEntry} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSectionForMarksEntry(e.target.value)} options={sections} required />
+                                    <SelectField label="Subject" name="subject" value={subjectForMarksEntry} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSubjectForMarksEntry(e.target.value)} options={subjects} required />
+                                </>
+                            )}
+
                         </div>
                         {category === 'add' && (
                             <TextAreaField label="Term Description" name="desc" value={newExamData.desc} onChange={handleChange} maxLength={200} />
@@ -593,7 +684,8 @@ export default function Exams() {
                                 category === 'add' ? 'Create'
                                     : category === 'view' ? 'View'
                                         : category === 'analysis' ? 'Analyze'
-                                            : 'Generate'
+                                            : category === 'reportGen' ? 'Generate'
+                                                : 'Get Exams'
                             }
                             reset={() => reset(true)}
                         />
@@ -604,9 +696,44 @@ export default function Exams() {
             {category != 'reportGen' && examsData && examsData.length > 0 && (
                 <div className="max-w-6xl mx-auto mb-10">
                     <FormSection title="Exams Data" icon={<Layers />} margin={false}>
+
+                        {(category === 'view' || category === 'analysis') && availableClassesForFilter.length > 1 && (
+                            <div className="flex flex-wrap items-center gap-2 mb-5">
+                                <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">
+                                    <Filter size={14} />
+                                    Class
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setClassFilterForData(ALL_CLASSES)}
+                                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                        classFilterForData === ALL_CLASSES
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    All
+                                </button>
+                                {availableClassesForFilter.map(cls => (
+                                    <button
+                                        key={cls}
+                                        type="button"
+                                        onClick={() => setClassFilterForData(cls)}
+                                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                            classFilterForData === cls
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        <GraduationCap size={13} />
+                                        {cls}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-                            {groupedExams &&
-                                Object.entries(groupedExams).map(([groupId, subjectsMap]) => {
+                            {visibleGroupedEntries.map(([groupId, subjectsMap]) => {
                                     const subjectEntries = Object.entries(subjectsMap);
                                     const first = subjectEntries[0][1][0];
 
@@ -666,7 +793,7 @@ export default function Exams() {
                                                             <th className="px-4 py-2.5 text-left w-20">Min</th>
                                                             <th className="px-4 py-2.5 text-left w-20">Max</th>
                                                             <th className="px-4 py-2.5 text-left w-32">Date</th>
-                                                            {(category === 'view' || category === 'analysis') && (
+                                                            {(category === 'view' || category === 'analysis' || category === 'submitMarks') && (
                                                                 <th className="px-4 py-2.5 text-right w-24">Actions</th>
                                                             )}
                                                         </tr>
@@ -724,9 +851,14 @@ export default function Exams() {
                                                                             </td>
                                                                         )}
 
-                                                                        {category === 'analysis' && (
+                                                                        {(category === 'analysis' || category === 'submitMarks') && (
                                                                             <td className="px-4 py-3 text-right">
-                                                                                <button type="button" onClick={() => handleMarksAnalysis(exam)} title="Analyze" className="text-gray-500 hover:text-indigo-600 inline-flex">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={category === 'analysis' ? () => handleMarksAnalysis(exam) : () => handleMarksEntry(exam)}
+                                                                                    title={category === 'analysis' ? 'Analyze' : 'Enter Marks'}
+                                                                                    className="text-gray-500 hover:text-indigo-600 inline-flex"
+                                                                                >
                                                                                     <ChevronRight size={17} />
                                                                                 </button>
                                                                             </td>
@@ -780,6 +912,16 @@ export default function Exams() {
                     setEnableAddType={setEnableAddType}
                     setPageLoading={setPageLoading}
                     getExamsData={getExamsData}
+                />
+            )}
+
+            {showMarksEntryDialog && selectedExamForMarksEntry && (
+                <ExamMarksEntryDialog
+                    title="Enter Marks"
+                    examData={selectedExamForMarksEntry}
+                    section={sectionForMarksEntry}
+                    setPageLoading={setPageLoading}
+                    setShowMarksEntryDialog={setShowMarksEntryDialog}
                 />
             )}
         </div>

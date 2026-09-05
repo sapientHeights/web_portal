@@ -90,13 +90,18 @@ export default function MarksAnalysis() {
             const marks = Number(student.marks);
             if (isNaN(marks)) return acc;
 
-            if (marks >= 35) acc.pass++;
+            const minMarks = Number(selectedExamData?.minMarks || 35);
+            const maxMarks = Number(selectedExamData?.maxMarks || 100);
+
+            if (marks >= minMarks) acc.pass++;
             else acc.fail++;
 
-            if (marks >= 90) acc.above90++;
-            else if (marks >= 70) acc.between70_90++;
-            else if (marks >= 50) acc.between50_70++;
-            else if (marks >= 30) acc.between30_50++;
+            const percentage = (marks / maxMarks) * 100;
+
+            if (percentage >= 90) acc.above90++;
+            else if (percentage >= 70) acc.between70_90++;
+            else if (percentage >= 50) acc.between50_70++;
+            else if (percentage >= 30) acc.between30_50++;
             else acc.below30++;
 
             return acc;
@@ -125,13 +130,27 @@ export default function MarksAnalysis() {
             const marks = Number(student.marks);
             if (isNaN(marks)) return false;
 
+            const maxMarks = Number(selectedExamData?.maxMarks || 100);
+            const percentage = (marks / maxMarks) * 100;
+
             switch (selectedCategory) {
-                case 'above90': return marks >= 90;
-                case 'between70_90': return marks >= 70 && marks < 90;
-                case 'between50_70': return marks >= 50 && marks < 70;
-                case 'between30_50': return marks >= 30 && marks < 50;
-                case 'below30': return marks < 30;
-                default: return false;
+                case 'above90':
+                    return percentage >= 90;
+
+                case 'between70_90':
+                    return percentage >= 70 && percentage < 90;
+
+                case 'between50_70':
+                    return percentage >= 50 && percentage < 70;
+
+                case 'between30_50':
+                    return percentage >= 30 && percentage < 50;
+
+                case 'below30':
+                    return percentage < 30;
+
+                default:
+                    return false;
             }
         });
     };
@@ -366,74 +385,74 @@ export default function MarksAnalysis() {
 // UI Components
 
 type CardProps = {
-  title: string;
-  value: number | undefined;
-  color: string;
+    title: string;
+    value: number | undefined;
+    color: string;
 };
 
 function Card({ title, value, color }: CardProps) {
-  return (
-    <div className={`${color} text-white p-4 rounded-2xl shadow`}>
-      <p className="text-sm">{title}</p>
-      <p className="text-2xl font-bold">{value}</p>
-    </div>
-  );
+    return (
+        <div className={`${color} text-white p-4 rounded-2xl shadow`}>
+            <p className="text-sm">{title}</p>
+            <p className="text-2xl font-bold">{value}</p>
+        </div>
+    );
 }
 
 type ProgressProps = {
-  label: string;
-  value?: number;
-  total?: number;
-  color: string;
+    label: string;
+    value?: number;
+    total?: number;
+    color: string;
 };
 
 function Progress({ label, value = 0, total = 1, color }: ProgressProps) {
-  const percent = total ? (value / total) * 100 : 0;
+    const percent = total ? (value / total) * 100 : 0;
 
-  return (
-    <div className="mb-4">
-      <div className="flex justify-between text-sm mb-1">
-        <span>{label}</span>
-        <span>{value}</span>
-      </div>
-      <div className="w-full bg-gray-200 rounded-full h-3">
-        <div
-          className={`${color} h-3 rounded-full`}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-    </div>
-  );
+    return (
+        <div className="mb-4">
+            <div className="flex justify-between text-sm mb-1">
+                <span>{label}</span>
+                <span>{value}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3">
+                <div
+                    className={`${color} h-3 rounded-full`}
+                    style={{ width: `${percent}%` }}
+                />
+            </div>
+        </div>
+    );
 }
 
 type RowProps = {
-  label: string;
-  value: number | undefined;
-  onClick?: () => void;
+    label: string;
+    value: number | undefined;
+    onClick?: () => void;
 };
 
 function Row({ label, value, onClick }: RowProps) {
-  return (
-    <tr
-      onClick={onClick}
-      className="border-t cursor-pointer hover:bg-blue-50 transition"
-    >
-      <td className="p-4 font-medium">{label}</td>
-      <td className="p-4">{value}</td>
-    </tr>
-  );
+    return (
+        <tr
+            onClick={onClick}
+            className="border-t cursor-pointer hover:bg-blue-50 transition"
+        >
+            <td className="p-4 font-medium">{label}</td>
+            <td className="p-4">{value}</td>
+        </tr>
+    );
 }
 
 type InfoCardProps = {
-  label: string;
-  value: string | number;
+    label: string;
+    value: string | number;
 };
 
 function InfoCard({ label, value }: InfoCardProps) {
-  return (
-    <div className="bg-gray-100 rounded-xl p-4">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-lg font-semibold text-gray-800">{value}</p>
-    </div>
-  );
+    return (
+        <div className="bg-gray-100 rounded-xl p-4">
+            <p className="text-xs text-gray-500">{label}</p>
+            <p className="text-lg font-semibold text-gray-800">{value}</p>
+        </div>
+    );
 }
