@@ -4,8 +4,9 @@ import Button from "@/components/ui/Button";
 import FormSection from "@/components/ui/FormSection";
 import InputField from "@/components/ui/InputField";
 import SelectField from "@/components/ui/SelectField";
+import RadioGroup from "@/components/ui/RadioGroup";
 import { useSubjects } from "@/hooks/useSubjects";
-import { EXAM_TYPE_OPTIONS, DEFAULT_MAX_MARKS } from "@/lib/examConstants";
+import { EXAM_TYPE_OPTIONS, DEFAULT_MAX_MARKS, SINGLE_MARK_SUBJECTS, SINGLE_MARK_EXAM_TYPE } from "@/lib/examConstants";
 import { ListPlus, X } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -17,8 +18,12 @@ type Component = {
     maxMarks: string;
 };
 
+// examFormat controls whether this subject block gets the full component
+// breakdown or a single locked-down mark (GK/Art style) — per-subject, same
+// as the create-exam form
 type SubjectItem = {
     subjectId: string;
+    examFormat: "Single" | "Multiple";
     components: Component[];
 };
 
@@ -38,7 +43,7 @@ type Props = {
 };
 
 const emptyComponent = (): Component => ({ examType: "", date: "", minMarks: "", maxMarks: "" });
-const emptyItem = (): SubjectItem => ({ subjectId: "", components: [emptyComponent()] });
+const emptyItem = (): SubjectItem => ({ subjectId: "", examFormat: "Multiple", components: [emptyComponent()] });
 
 export default function ExamAddSubjectDialog({
     title,
@@ -62,9 +67,16 @@ export default function ExamAddSubjectDialog({
             .filter(Boolean)
     ];
 
+    // Subject pool for a given block depends on that block's own format:
+    // Single -> only single-mark subjects (GK, Art, etc.)
+    // Multiple -> everything except single-mark subjects
     const subjectOptionsFor = (subjectIndex: number): string[] => {
         const used = usedSubjectIds(subjectIndex);
-        return subjects.filter(s => !used.includes(s));
+        const format = items[subjectIndex]?.examFormat ?? "Multiple";
+        const pool = format === "Single"
+            ? SINGLE_MARK_SUBJECTS
+            : subjects.filter(s => !SINGLE_MARK_SUBJECTS.includes(s));
+        return pool.filter(s => !used.includes(s));
     };
 
     // How many subjects are still eligible to be added at all, ignoring what's
@@ -80,12 +92,47 @@ export default function ExamAddSubjectDialog({
         setItems(prev => prev.filter((_, i) => i !== subjectIndex));
     };
 
+    // Switching a block's format resets its subject + components, since the
+    // subject pool and component rules differ between the two modes
+    const handleFormatChange = (subjectIndex: number, format: string) => {
+        const normalized: "Single" | "Multiple" = format === "Single" ? "Single" : "Multiple";
+        setItems(prev =>
+            prev.map((item, i) =>
+                i === subjectIndex
+                    ? { subjectId: "", examFormat: normalized, components: [emptyComponent()] }
+                    : item
+            )
+        );
+    };
+
     const handleSubjectChange = (subjectIndex: number, subjectId: string) => {
-        setItems(prev => prev.map((item, i) => (i === subjectIndex ? { ...item, subjectId } : item)));
+        setItems(prev =>
+            prev.map((item, i) => {
+                if (i !== subjectIndex) return item;
+
+                if (item.examFormat === "Single") {
+                    // Single-format subjects always get exactly one
+                    // component, locked to SINGLE_MARK_EXAM_TYPE
+                    const existing = item.components[0] ?? emptyComponent();
+                    return {
+                        ...item,
+                        subjectId,
+                        components: [{
+                            ...existing,
+                            examType: SINGLE_MARK_EXAM_TYPE,
+                            maxMarks: existing.maxMarks || DEFAULT_MAX_MARKS[SINGLE_MARK_EXAM_TYPE] || "",
+                        }]
+                    };
+                }
+
+                return { ...item, subjectId };
+            })
+        );
     };
 
     const addComponent = (subjectIndex: number) => {
         const item = items[subjectIndex];
+        if (item?.examFormat === "Single") return; // Single format always has exactly one component
         if (!item?.subjectId || item.components.length >= EXAM_TYPE_OPTIONS.length) return;
 
         setItems(prev =>
@@ -139,6 +186,8 @@ export default function ExamAddSubjectDialog({
             .filter(Boolean) ?? [];
 
     const examTypeOptionsFor = (subjectIndex: number, componentIndex: number): string[] => {
+        const item = items[subjectIndex];
+        if (item?.examFormat === "Single") return [SINGLE_MARK_EXAM_TYPE];
         const used = usedExamTypes(subjectIndex, componentIndex);
         return EXAM_TYPE_OPTIONS.filter(opt => !used.includes(opt));
     };
@@ -215,6 +264,16 @@ export default function ExamAddSubjectDialog({
                             <div key={subjectIndex} className="border border-gray-200 rounded-xl mt-4">
                                 <div className="flex items-center justify-between p-2">
                                     <div className="flex-1">
+                                        <div className="mb-4">
+                                            <RadioGroup
+                                                label="Exam Format"
+                                                name={`examFormat-${subjectIndex}`}
+                                                options={["Single", "Multiple"]}
+                                                value={item.examFormat}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => handleFormatChange(subjectIndex, e.target.value)}
+                                                required
+                                            />
+                                        </div>
                                         <SelectField
                                             label={`Subject ${subjectIndex + 1}`}
                                             name="subject"
@@ -239,7 +298,7 @@ export default function ExamAddSubjectDialog({
                                     <div key={componentIndex} className="border-t border-gray-100">
                                         <div className="flex items-center justify-between px-4 pt-3">
                                             <p className="text-sm font-medium text-gray-500">Exam {componentIndex + 1}</p>
-                                            {item.components.length > 1 && (
+                                            {item.examFormat === "Multiple" && item.components.length > 1 && (
                                                 <button
                                                     type="button"
                                                     onClick={() => removeComponent(subjectIndex, componentIndex)}
@@ -259,7 +318,7 @@ export default function ExamAddSubjectDialog({
                                                 }
                                                 options={examTypeOptionsFor(subjectIndex, componentIndex)}
                                                 required
-                                                disabled={!item.subjectId}
+                                                disabled={item.examFormat === "Single" || !item.subjectId}
                                             />
                                             <InputField
                                                 label="Date"
@@ -293,7 +352,7 @@ export default function ExamAddSubjectDialog({
                                     </div>
                                 ))}
 
-                                {item.subjectId && item.components.length < EXAM_TYPE_OPTIONS.length && (
+                                {item.examFormat === "Multiple" && item.subjectId && item.components.length < EXAM_TYPE_OPTIONS.length && (
                                     <div className="p-4 pt-0">
                                         <Button
                                             type="button"
